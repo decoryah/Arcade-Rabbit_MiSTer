@@ -1,6 +1,6 @@
 #!/bin/sh
 # The whole-machine bench: rabbit_core behind rabbit_sdram and a behavioural SDRAM loaded with the image's SDRAM layout.
-#   sim/run_sys.sh <rabbit.sdram> <rabbit.nv> <frames> <out prefix>
+#   sim/run_sys.sh <rabbit.sdram> <rabbit.nv> <frames> <out prefix> [+plusargs: +WATCHLO=.. etc., sim/tb_top.sv]
 # (tools/rabbit_rom.py <rabbit.zip> rabbit x.rom --sdram rabbit.sdram --eeprom rabbit.nv makes the two files.)
 # Environment: see sim/tb_rabbit.cpp (SNAPEVERY, SNAPFRAMES, SCHED, AUDIO, TRACE); REBUILD=1 rebuilds the model; THREADS=n.
 set -e
@@ -19,4 +19,5 @@ verilator --cc --exe --build -j ${JOBS:-16} -O3 ${THREADS:+--threads $THREADS} -
     ../modules/cpu-tg68k/gen/tg68k.v sdram_model.sv tb_top.sv tb_rabbit.cpp > $OBJ.log 2>&1 || { tail -30 $OBJ.log; exit 1; }
 fi
 mkdir -p "$(dirname "$4")"
-./$OBJ/Vtb_top +SDRAM="$SD" +EEPROM="$NV" "$3" "$4"
+PRE="$4"; FR="$3"; shift 4
+./$OBJ/Vtb_top +SDRAM="$SD" +EEPROM="$NV" "$@" "$FR" "$PRE"

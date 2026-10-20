@@ -90,5 +90,50 @@ module tb_top #(
         .audio_l(audio_l), .audio_r(audio_r),
         .dbg_frame(dbg_frame), .dbg_overrun_a(dbg_overrun_a), .dbg_overrun_b(dbg_overrun_b), .dbg_addr(dbg_addr), .dbg_step(dbg_step), .dbg_rd(dbg_rd), .dbg_rd_addr(dbg_rd_addr), .dbg_blt_busy(dbg_blt_busy), .dbg_blt_irq(dbg_blt_irq)
     );
+
+    // ------------------------------------------------------------------ the write watch: +WATCHLO=<hex> +WATCHHI=<hex> [+WATCHFROM=f
+    // +WATCHTO=f] print every CPU write into the range as "W <frame> <us since vblank> <PC> <address> <data> <uds lds>", the core's side
+    // of tools/lua/watch.lua (frames counted as sim/tb_rabbit.cpp counts them)
+    logic [23:0] w_lo = 24'hffffff, w_hi = 24'h000000;
+    int          w_from = 0, w_to = 1 << 30;
+    initial begin
+        void'($value$plusargs("WATCHLO=%h", w_lo));
+        void'($value$plusargs("WATCHHI=%h", w_hi));
+        void'($value$plusargs("WATCHFROM=%d", w_from));
+        void'($value$plusargs("WATCHTO=%d", w_to));
+    end
+    int          w_frame = 0;
+    longint      w_cyc = 0, w_vb = 0;
+    logic        w_pvb = 1'b1;
+    wire  [23:0] w_a = {u_core.u_main.A, 1'b0};
+    // +STEPSTATS: the CPU's steps counted by kind (opcode fetch, data read, data write, internal) and its clocks by what held it (the
+    // token bucket, a bus cycle in progress), printed cumulatively at every vblank ("S ...") and with every watched write
+    bit          w_stats = 1'b0;
+    initial w_stats = $test$plusargs("STEPSTATS");
+    longint      n_fetch = 0, n_read = 0, n_write = 0, n_int = 0, n_tok = 0, n_bus = 0;
+    always_ff @(posedge clk) begin
+        w_cyc <= w_cyc + 1;
+        w_pvb <= vblank;
+        if (vblank && !w_pvb) begin
+            w_frame <= w_frame + 1; w_vb <= w_cyc;
+            if (w_stats) $display("S %0d %0d %0d %0d %0d %0d %0d %0d", w_frame + 1, w_cyc, n_fetch, n_read, n_write, n_int, n_tok, n_bus);
+        end
+        if (!mc_reset) begin
+            if (u_core.u_main.cpu_step) begin
+                if (u_core.u_main.is_int) n_int <= n_int + 1;
+                else case (u_core.u_main.busstate)
+                    2'b00:   n_fetch <= n_fetch + 1;
+                    2'b10:   n_read  <= n_read + 1;
+                    default: n_write <= n_write + 1;
+                endcase
+            end else if (u_core.u_main.bst != 0) n_bus <= n_bus + 1;
+            else if (u_core.u_main.tok < u_core.u_main.step_cost) n_tok <= n_tok + 1;
+        end
+        if (u_core.u_main.cpu_wr && w_a >= w_lo && w_a <= w_hi && w_frame >= w_from && w_frame <= w_to) begin
+            $display("W %0d %0.1f %06x %06x %04x %b%b", w_frame, real'(w_cyc - w_vb) / 96.0, u_core.u_main.cpu.exe_pc[23:0], w_a,
+                     u_core.u_main.wdat, u_core.u_main.uds, u_core.u_main.lds);
+            if (w_stats) $display("S - %0d %0d %0d %0d %0d %0d %0d", w_cyc, n_fetch, n_read, n_write, n_int, n_tok, n_bus);
+        end
+    end
 endmodule
 `default_nettype wire
