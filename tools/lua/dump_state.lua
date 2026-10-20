@@ -1,5 +1,6 @@
 -- Rabbit: freeze frames and write the video chip's state with MAME's own snapshot of the same frame (the frame bench, sim/run_frames.sh).
 --   DUMPFRAMES=<f,f,...>  frames to capture;  DUMPDIR=<dir>  output (state_<f>.bin, snap_<f>.png)
+--   WORKRAM=1             also wram_<f>.bin: the work RAM (ff0000-ffffff, 64 KB)
 --   SCHED=coin|play       scripted inputs, the same as the system bench's (sim/tb_rabbit.cpp sched()): a coin at frame 300, start at
 --                         400; coin: button A every other second from 600; play: from 600 walking, jumping and buttons A-C in a fixed
 --                         pattern of the frame number
@@ -13,6 +14,7 @@ local FR, LAST = {}, 0
 for n in string.gmatch(os.getenv("DUMPFRAMES") or "", "%d+") do FR[tonumber(n)] = true; if tonumber(n) > LAST then LAST = tonumber(n) end end
 local DIR = os.getenv("DUMPDIR") or "."
 local SCHED = os.getenv("SCHED")
+if SCHED == "" then SCHED = nil end
 
 local inp = mach.ioport.ports[":INPUTS"]
 local function field(name) for n, f in pairs(inp.fields) do if n == name then return f end end end
@@ -50,6 +52,11 @@ local function dump(f)
   local sh = mach.memory.shares[":spriteregs"]
   for n = 0, 6 do t[#t + 1] = be32(sh:read_u32(n * 4)) end
   local fh = io.open(string.format("%s/state_%d.bin", DIR, f), "wb"); fh:write(table.concat(t)); fh:close()
+  if os.getenv("WORKRAM") == "1" then
+    local w = {}
+    for a = 0xff0000, 0xfffffc, 4 do w[#w + 1] = be32(sp:read_u32(a)) end
+    fh = io.open(string.format("%s/wram_%d.bin", DIR, f), "wb"); fh:write(table.concat(w)); fh:close()
+  end
   scr:snapshot(string.format("%s/snap_%d.png", DIR, f))
 end
 

@@ -68,8 +68,9 @@ module rabbit_main #(
     input  logic [31:0] in_port,
 
     // EEPROM (93C46)
+    output logic        eep_wr,          // one clock: the lines below were written (rabbit_eeprom takes the edges)
     output logic        eep_cs,
-    output logic        eep_clk_rise,    // one clock: a rising edge of the chip's clock
+    output logic        eep_clk,
     output logic        eep_di,
     input  logic        eep_do,
 
@@ -166,7 +167,6 @@ module rabbit_main #(
     bst_t bst;
     logic [6:0] tok;
     logic       gr_taken;
-    logic       eep_clk_q;
 
     wire [6:0] step_cost = is_int ? 7'(STEP_COST_INT) : 7'(STEP_COST_BUS);
     wire cpu_step = (bst == B_IDLE) && (tok >= step_cost) && !clkena && (step_gap == 3'd0);
@@ -181,7 +181,7 @@ module rabbit_main #(
         dbg_step <= 1'b0;
         blt_start <= 1'b0;
         snd_wr   <= 1'b0;
-        eep_clk_rise <= 1'b0;
+        eep_wr   <= 1'b0;
         step_gap <= {step_gap[1:0], clkena};
         if (gr_ack) gr_req <= 1'b0;
         dbg_rd <= cpu_step && (busstate == 2'b10) && (fc != 3'b111);
@@ -191,7 +191,7 @@ module rabbit_main #(
             bst <= B_IDLE; tok <= '0; step_gap <= '0;
             irq6_pend <= 1'b0; irq4_pend <= 1'b0;
             rom_req <= 1'b0; gr_req <= 1'b0; v_req <= 1'b0;
-            eep_cs <= 1'b0; eep_di <= 1'b0; eep_clk_q <= 1'b0;
+            eep_cs <= 1'b0; eep_di <= 1'b0; eep_clk <= 1'b0;
             for (int i = 0; i < 3; i++) blt_regs[i] <= '0;
         end else begin
             if (tok < 7'd64) tok <= tok + 7'(STEP_GAIN);
@@ -252,8 +252,7 @@ module rabbit_main #(
                 if (sel_in) begin
                     // eeprom_write: only a write of the top byte alone (mem_mask ff000000): DI bit 24, CLK bit 25, CS bit 26
                     if (!A[1] && uds && !lds) begin
-                        eep_di <= wdat[8]; eep_cs <= wdat[10]; eep_clk_q <= wdat[9];
-                        if (wdat[9] && !eep_clk_q && wdat[10]) eep_clk_rise <= 1'b1;
+                        eep_wr <= 1'b1; eep_di <= wdat[8]; eep_cs <= wdat[10]; eep_clk <= wdat[9];
                     end
                 end else if (sel_blt) begin
                     for (int i = 0; i < 3; i++) if (A[3:2] == 2'(i)) begin
@@ -277,7 +276,5 @@ module rabbit_main #(
         end
     end
 
-    // the chip's clock pin: CS low resets its state machine, a rising edge with CS high takes DI
-    // (eep_clk_rise is raised only when CS is high at the edge; the EEPROM model sees CS directly)
 endmodule
 `default_nettype wire

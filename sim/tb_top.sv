@@ -23,6 +23,8 @@ module tb_top (
     output logic        dbg_step,
     output logic        dbg_rd,
     output logic [23:0] dbg_rd_addr,
+    output logic        dbg_blt_busy,
+    output logic        dbg_blt_irq,
     output logic        running
 );
     // ------------------------------------------------------------------ the SDRAM
@@ -82,7 +84,7 @@ module tb_top (
         .ee_nv_wr(1'b0), .ee_nv_addr('0), .ee_nv_data('0), .ee_nv_raddr('0), .ee_nv_rdata(), .ee_written(),
         .ce_pix(ce_pix), .hblank(hblank), .vblank(vblank), .hs(hs), .vs(vs), .r(r), .g(g), .b(b),
         .audio_l(audio_l), .audio_r(audio_r),
-        .dbg_frame(dbg_frame), .dbg_overrun_a(dbg_overrun_a), .dbg_overrun_b(dbg_overrun_b), .dbg_addr(dbg_addr), .dbg_step(dbg_step), .dbg_rd(dbg_rd), .dbg_rd_addr(dbg_rd_addr)
+        .dbg_frame(dbg_frame), .dbg_overrun_a(dbg_overrun_a), .dbg_overrun_b(dbg_overrun_b), .dbg_addr(dbg_addr), .dbg_step(dbg_step), .dbg_rd(dbg_rd), .dbg_rd_addr(dbg_rd_addr), .dbg_blt_busy(dbg_blt_busy), .dbg_blt_irq(dbg_blt_irq)
     );
 endmodule
 `default_nettype wire

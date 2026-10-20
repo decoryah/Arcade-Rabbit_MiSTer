@@ -58,7 +58,9 @@ module rabbit_core #(
     output logic [23:0] dbg_addr,
     output logic        dbg_step,
     output logic        dbg_rd,
-    output logic [23:0] dbg_rd_addr
+    output logic [23:0] dbg_rd_addr,
+    output logic        dbg_blt_busy,
+    output logic        dbg_blt_irq
 );
     // ------------------------------------------------------------------ the program cache
     logic        cache_ready;
@@ -83,7 +85,7 @@ module rabbit_core #(
     logic        snd_wr;
     logic  [6:0] snd_reg;
     logic [15:0] snd_wdata, snd_rdata;
-    logic        eep_cs, eep_clk_rise, eep_di, eep_do;
+    logic        eep_wr, eep_cs, eep_clk, eep_di, eep_do;
 
     rabbit_main #(.STEP_COST_BUS(STEP_COST_BUS), .STEP_COST_INT(STEP_COST_INT), .STEP_GAIN(STEP_GAIN)) u_main (
         .clk(clk), .reset(cpu_reset),
@@ -94,7 +96,7 @@ module rabbit_core #(
         .snd_wr(snd_wr), .snd_reg(snd_reg), .snd_wdata(snd_wdata), .snd_rdata(snd_rdata),
         .vbl_irq(vbl_irq), .blt_irq(blt_irq),
         .in_port(in_port),
-        .eep_cs(eep_cs), .eep_clk_rise(eep_clk_rise), .eep_di(eep_di), .eep_do(eep_do),
+        .eep_wr(eep_wr), .eep_cs(eep_cs), .eep_clk(eep_clk), .eep_di(eep_di), .eep_do(eep_do),
         .dbg_pc_addr(dbg_addr), .dbg_step(dbg_step), .dbg_rd(dbg_rd), .dbg_rd_addr(dbg_rd_addr)
     );
     assign m_len[2] = 5'd1;
@@ -115,6 +117,8 @@ module rabbit_core #(
         .dbg_overrun_a(dbg_overrun_a), .dbg_overrun_b(dbg_overrun_b), .dbg_frame(dbg_frame)
     );
 
+    assign dbg_blt_busy = blt_busy;
+    assign dbg_blt_irq  = blt_irq;
     rabbit_blitter u_blit (
         .clk(clk), .reset(reset), .start(blt_start), .regs(blt_regs), .hold(snap_hold),
         .active(blt_active), .busy(blt_busy), .irq(blt_irq),
@@ -132,7 +136,7 @@ module rabbit_core #(
 
     // ------------------------------------------------------------------ the EEPROM
     rabbit_eeprom u_eep (
-        .clk(clk), .i_cs(eep_cs), .i_clk(eep_clk_rise), .i_di(eep_di), .o_do(eep_do),
+        .clk(clk), .i_wr(eep_wr), .i_di(eep_di), .i_cs(eep_cs), .i_clk(eep_clk), .o_do(eep_do),
         .i_ld_wr(ee_ld_wr), .i_ld_addr(ee_ld_addr), .i_ld_data(ee_ld_data),
         .i_nv_wr(ee_nv_wr), .i_nv_addr(ee_nv_addr), .i_nv_data(ee_nv_data),
         .i_nv_raddr(ee_nv_raddr), .o_nv_rdata(ee_nv_rdata), .o_written(ee_written)

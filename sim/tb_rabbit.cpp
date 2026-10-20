@@ -4,6 +4,7 @@
 // AUDIO=1 (<prefix>.wav), TRACE=1 (a line per frame: the CPU's address, overruns).
 // Pictures are written as <prefix>.f<frame>.ppm (320 x 224).
 #include "Vtb_top.h"
+#include "Vtb_top___024root.h"
 #include "verilated.h"
 #include <cstdio>
 #include <cstdlib>
@@ -61,6 +62,7 @@ int main(int argc, char **argv) {
     if (pos.size() >= 2) prefix = pos[1];
     int snapevery = getenv("SNAPEVERY") ? atoi(getenv("SNAPEVERY")) : 0;
     std::set<int> snapframes = parse_list(getenv("SNAPFRAMES"));
+    std::set<int> ramframes = parse_list(getenv("DUMPRAM"));      // the work RAM at these frames: <prefix>.wram_<f>.bin (big-endian, as MAME dumps it)
     const char *sched = getenv("SCHED");
     bool trace = getenv("TRACE") && atoi(getenv("TRACE"));
     bool audio = getenv("AUDIO") && atoi(getenv("AUDIO"));
@@ -77,7 +79,8 @@ int main(int argc, char **argv) {
     std::vector<int16_t> abuf;
     if (audio) wav = fopen((prefix + ".raw").c_str(), "wb");
     int acnt = 0;
-    uint64_t idle_reads = 0;
+    uint64_t idle_reads = 0, blt_run = 0, blt_max = 0;
+    int nirq = 0, late_irq = 0;
     FILE *idlef = getenv("IDLE") ? fopen(getenv("IDLE"), "w") : nullptr;
 
     while (frame < nframes && !Verilated::gotFinish()) {
@@ -87,7 +90,9 @@ int main(int argc, char **argv) {
         t->clk = 1; t->eval();
         t->clk = 0; t->eval();
         cyc++;
-        if (t->dbg_rd && t->dbg_rd_addr == 0xff53c6) idle_reads++;     // the idle loop's flag (tst.b at 101f2): the CPU's slack
+        if (t->dbg_rd && t->dbg_rd_addr == 0xff53c6) idle_reads++;
+        if (t->dbg_blt_busy) { blt_run++; if (blt_run > blt_max) blt_max = blt_run; } else blt_run = 0;
+        if (t->dbg_blt_irq) { nirq++; if (t->dbg_blt_busy) late_irq++; }     // the idle loop's flag (tst.b at 101f2): the CPU's slack
 
         if (audio && ++acnt == 2000) {     // 48 kHz
             acnt = 0;
@@ -109,11 +114,18 @@ int main(int argc, char **argv) {
                     char fn[64]; snprintf(fn, sizeof fn, ".f%d.ppm", frame);
                     write_ppm(prefix + fn, fb);
                 }
+                if (ramframes.count(frame)) {
+                    char fn[64]; snprintf(fn, sizeof fn, ".wram_%d.bin", frame);
+                    FILE *w = fopen((prefix + fn).c_str(), "wb");
+                    auto &m = t->rootp->tb_top__DOT__u_core__DOT__u_main__DOT__u_wram__DOT__mem;
+                    for (int i = 0; i < 32768; i++) { uint16_t v = m[i]; uint8_t b2[2] = { (uint8_t)(v >> 8), (uint8_t)v }; fwrite(b2, 1, 2, w); }
+                    fclose(w);
+                }
                 if (trace)
                     printf("frame %d cyc %llu addr %06x overrun A %u B %u running %d\n", frame, (unsigned long long)cyc,
                            t->dbg_addr, t->dbg_overrun_a, t->dbg_overrun_b, t->running);
                 fflush(stdout);
-                if (idlef) { fprintf(idlef, "%d %llu\n", frame, (unsigned long long)idle_reads); fflush(idlef); }
+                if (idlef) { fprintf(idlef, "%d %llu blit_max %llu irq %d late %d\n", frame, (unsigned long long)idle_reads, (unsigned long long)blt_max, nirq, late_irq); fflush(idlef); blt_max = 0; nirq = 0; late_irq = 0; }
                 idle_reads = 0;
                 y = 0; x = 0;
             }

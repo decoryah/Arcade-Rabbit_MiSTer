@@ -69,8 +69,8 @@ module rabbit_i5000 #(
     logic        tick_pend;
 
     // ------------------------------------------------------------------ the state machine
-    typedef enum logic [3:0] { F_IDLE, F_CH, F_RD, F_RDW, F_GOT, F_ADPCM, F_NEXT, F_OUT,
-                               F_KON, F_KRD, F_KRDW, F_KGOT } fst_t;
+    typedef enum logic [3:0] { F_IDLE, F_CH, F_RD, F_RDW, F_GOT, F_ADPCM, F_ADP2, F_MUL, F_ACC, F_NEXT, F_OUT,
+                               F_KON, F_KGOT } fst_t;
     fst_t        fs, ret;
     logic  [3:0] ch;
     logic signed [20:0] mixr, mixl;
@@ -100,17 +100,18 @@ module rabbit_i5000 #(
         for (int c = 15; c >= 0; c--) if (konp[c]) begin kany = 1'b1; kch = 4'(c); end
     end
 
-    // ADPCM: the code's difference at the channel's step (oki_adpcm_state)
-    logic [10:0] sv;
+    // ADPCM (oki_adpcm_state::clock), over four clocks: the step's size (F_ADP1), the new signal and step (F_ADP2), the volumes
+    // (F_MUL), the outputs and the mix (F_ACC)
+    logic [10:0] r_sv;
+    logic signed [13:0] r_sig;
+    logic signed [25:0] r_pr, r_pl;
     logic [12:0] dmag;
     logic signed [13:0] dsig, nsig;
     logic signed [7:0] nstp;
-    logic signed [25:0] pr, pl;
     logic [25:0] apr, apl;
     logic signed [15:0] o_r, o_l;
     always_comb begin
-        sv   = i5k_step(stp[ch]);
-        dmag = {2'b00, (w_nib[2] ? sv : 11'd0)} + {3'b000, (w_nib[1] ? sv[10:1] : 10'd0)} + {4'b0000, (w_nib[0] ? sv[10:2] : 9'd0)} + {5'b00000, sv[10:3]};
+        dmag = {2'b00, (w_nib[2] ? r_sv : 11'd0)} + {3'b000, (w_nib[1] ? r_sv[10:1] : 10'd0)} + {4'b0000, (w_nib[0] ? r_sv[10:2] : 9'd0)} + {5'b00000, r_sv[10:3]};
         dsig = $signed({1'b0, dmag});
         if (w_nib[3]) dsig = -dsig;
         nsig = $signed({{2{sig[ch][11]}}, sig[ch]}) + dsig;
@@ -126,12 +127,10 @@ module rabbit_i5000 #(
         if (nstp > 8'sd48) nstp = 8'sd48;
         else if (nstp < 8'sd0) nstp = 8'sd0;
         // output = signal * volume / 128, C's division (towards zero)
-        pr  = $signed({{12{nsig[13]}}, nsig}) * $signed({14'd0, volr[ch]});
-        pl  = $signed({{12{nsig[13]}}, nsig}) * $signed({14'd0, voll[ch]});
-        apr = pr[25] ? 26'(-pr) : 26'(pr);
-        apl = pl[25] ? 26'(-pl) : 26'(pl);
-        o_r = pr[25] ? -$signed(apr[22:7]) : $signed(apr[22:7]);
-        o_l = pl[25] ? -$signed(apl[22:7]) : $signed(apl[22:7]);
+        apr = r_pr[25] ? 26'(-r_pr) : 26'(r_pr);
+        apl = r_pl[25] ? 26'(-r_pl) : 26'(r_pl);
+        o_r = r_pr[25] ? -$signed(apr[22:7]) : $signed(apr[22:7]);
+        o_l = r_pl[25] ? -$signed(apl[22:7]) : $signed(apl[22:7]);
     end
 
     function automatic logic signed [15:0] sat16(input logic signed [20:0] v);
@@ -199,8 +198,20 @@ module rabbit_i5000 #(
                     end
                 end
                 F_ADPCM: begin
-                    sig[ch] <= nsig[11:0];
+                    r_sv <= i5k_step(stp[ch]);
+                    fs <= F_ADP2;
+                end
+                F_ADP2: begin
+                    sig[ch] <= nsig[11:0]; r_sig <= nsig;
                     stp[ch] <= nstp[5:0];
+                    fs <= F_MUL;
+                end
+                F_MUL: begin
+                    r_pr <= $signed({{12{r_sig[13]}}, r_sig}) * $signed({14'd0, volr[ch]});
+                    r_pl <= $signed({{12{r_sig[13]}}, r_sig}) * $signed({14'd0, voll[ch]});
+                    fs <= F_ACC;
+                end
+                F_ACC: begin
                     outr[ch] <= o_r; outl[ch] <= o_l;
                     mixr <= mixr + {{5{o_r[15]}}, o_r}; mixl <= mixl + {{5{o_l[15]}}, o_l};
                     fs <= F_NEXT;
