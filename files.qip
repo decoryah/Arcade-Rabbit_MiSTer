@@ -1,0 +1,25 @@
+set_global_assignment -name SYSTEMVERILOG_FILE Rabbit.sv
+set_global_assignment -name SDC_FILE Rabbit.sdc
+set_global_assignment -name QIP_FILE rtl/pll.qip
+
+# the machine
+set_global_assignment -name SEARCH_PATH rtl
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_ram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_core.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_main.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_cache.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_video.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_tilegen.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_sprgen.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_blitter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_i5000.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_eeprom.sv
+
+# the MiSTer platform layer
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_sdram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_loader.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_fastload.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_standby.sv
+
+# TG68K.C (LGPL, Tobias Gubener), GHDL-converted with the kernel's default generics (68000 .. 68020 switchable; this core uses CPU = 11)
+set_global_assignment -name VERILOG_FILE modules/cpu-tg68k/gen/tg68k.v

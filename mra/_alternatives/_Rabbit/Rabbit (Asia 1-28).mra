@@ -1,0 +1,59 @@
+<misterromdescription>
+    <name>Rabbit (Asia 1-28)</name>
+    <setname>rabbita</setname>
+    <mameversion>0289</mameversion>
+    <year>1996</year>
+    <manufacturer>Aorn / Electronic Arts</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rotation>horizontal</rotation>
+    <rbf>rabbit</rbf>
+    <platform>Rabbit</platform>
+
+    <!--
+      The image of the Rabbit core (rtl/rabbit_loader.sv, tools/rabbit_rom.py), the same layout for every set:
+        0x0000000  0x0200000  maincpu   ROM_LOAD32_BYTE of the four program ROMs
+        0x0200000  0x1000000  gfx1      ROM_LOAD32_WORD: jfv1 / jfv0, then jfv3 / jfv2
+        0x1200000  0x0600000  gfx2      jbg0, jbg1, jbg2
+        0x1800000  0x0400000  i5000snd  jsn0 from its byte 0x18 (MAME's ROM_CONTINUE over the header), 0x18 zero bytes
+        0x1C00000  0x0000080  eeprom    rabbit.nv (the EEPROM's default; a saved .nvm takes its place)
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
+      The game has no DIP switches: its settings are in the EEPROM (the test mode: F2, or Service + Start on a pad).
+    -->
+
+    <buttons names="A,B,C,D,Start,Coin,Service" default="A,B,X,Y,Start,Select,L"/>
+
+    <rom index="0" zip="rabbita.zip|rabbit.zip" md5="None" address="0x32000000">
+        <!-- maincpu -->
+        <interleave output="32">
+            <part name="pv00_mst.u82" crc="e23e738e" map="0001"/>
+            <part name="pv01_mst.u84" crc="8c7ff335" map="0010"/>
+            <part name="pv02_mst.u83" crc="c4bee278" map="0100"/>
+            <part name="pv03_mst.u85" crc="062f524e" map="1000"/>
+        </interleave>
+
+        <!-- gfx1: sprites and the blitter's lists -->
+        <interleave output="32">
+            <part name="jfv1.01" crc="83f3926e" map="0021"/>
+            <part name="jfv0.00" crc="b2a4d3d3" map="2100"/>
+        </interleave>
+        <interleave output="32">
+            <part name="jfv3.03" crc="3e1a9be2" map="0021"/>
+            <part name="jfv2.02" crc="b264bfb5" map="2100"/>
+        </interleave>
+
+        <!-- gfx2: the tilemaps' tiles -->
+        <part name="jbg0.40" crc="89662944"/>
+        <part name="jbg1.50" crc="1fc7f6e0"/>
+        <part name="jbg2.60" crc="aee265fc"/>
+
+        <!-- i5000snd -->
+        <part name="jsn0.11" crc="e1f726e8" offset="0x18" length="0x3FFFE8"/>
+        <part repeat="0x18">00</part>
+
+        <!-- eeprom -->
+        <part name="rabbit.nv" crc="73d471ed"/>
+    </rom>
+
+    <nvram index="4" size="128"/>
+</misterromdescription>
