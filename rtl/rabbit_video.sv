@@ -10,7 +10,8 @@
 // at once, 4096 clocks (43 us). Meanwhile, and from vblank start until a blit that is running has finished, the CPU's accesses to the
 // video chip wait. Every line of the picture is then drawn from the copy: the same frame MAME shows.
 //
-// The raster: 96 MHz / 15 = 6.4 MHz dots, 407 dots x 262 lines (15.72 kHz, 60.02 Hz), 320 x 224 visible (MAME's visible area).
+// The raster: 96 MHz / 15 = 6.4 MHz dots, 262 lines, 320 x 224 visible (MAME's visible area); a line of 424 dots (board_rate: 15.09 kHz,
+// 57.61 Hz, the board's rate as a recording of one plays) or 407 (15.72 kHz, 60.02 Hz, MAME's 60 Hz).
 // A line is made in three steps, one line time each:
 //   stage A (line y-2): the tile rows each layer samples into srcbuf (rabbit_tilegen), the sprite rows into spbuf (rabbit_sprgen);
 //   stage B (line y-1): the layers and the sprites drawn into comp in MAME's order (priority 15 first, layer 3, 2, 1, 0 within a level,
@@ -22,6 +23,7 @@
 module rabbit_video (
     input  logic        clk,
     input  logic        reset,
+    input  logic        board_rate,         // 1: 424 dots a line (57.61 Hz), 0: 407 (60.02 Hz)
 
     // the CPU's port (rabbit_main)
     input  logic        v_req,
@@ -159,6 +161,7 @@ module rabbit_video (
     // ================================================================== the raster
     logic  [3:0] sub;
     logic  [8:0] hcnt, vcnt;
+    wire  [8:0]  hlast = board_rate ? 9'd423 : 9'd406;
     wire         line_start = (sub == 4'd0) && (hcnt == 9'd0);
     wire  [8:0]  va = (vcnt >= 9'd260) ? vcnt - 9'd260 : vcnt + 9'd2;     // stage A's line
     wire  [8:0]  vb = (vcnt == 9'd261) ? 9'd0 : vcnt + 9'd1;               // stage B's line
@@ -167,7 +170,7 @@ module rabbit_video (
         else begin
             sub <= (sub == 4'd14) ? 4'd0 : sub + 4'd1;
             if (sub == 4'd14) begin
-                if (hcnt == 9'd406) begin hcnt <= '0; vcnt <= (vcnt == 9'd261) ? 9'd0 : vcnt + 9'd1; end
+                if (hcnt == hlast) begin hcnt <= '0; vcnt <= (vcnt == 9'd261) ? 9'd0 : vcnt + 9'd1; end
                 else hcnt <= hcnt + 9'd1;
             end
         end
@@ -433,8 +436,8 @@ module rabbit_video (
     // during dot h (sub 1..3) the next dot's pixel is fetched: comp, then the palette; it is shown from the next dot's ce
     logic  [8:0] nh, nv;
     always_comb begin
-        nh = (hcnt == 9'd406) ? 9'd0 : hcnt + 9'd1;
-        nv = (hcnt == 9'd406) ? ((vcnt == 9'd261) ? 9'd0 : vcnt + 9'd1) : vcnt;
+        nh = (hcnt == hlast) ? 9'd0 : hcnt + 9'd1;
+        nv = (hcnt == hlast) ? ((vcnt == 9'd261) ? 9'd0 : vcnt + 9'd1) : vcnt;
     end
     logic        n_vis;
     logic        c_sel, c_valid;

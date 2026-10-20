@@ -9,6 +9,7 @@ module tb_top #(
 ) (
     input  logic        clk,
     input  logic        reset_in,
+    input  logic        board_rate,          // the raster (rabbit_video): 0 = MAME's 60 Hz (the benches' default), 1 = the board's 57.61 Hz
     input  logic [31:0] in_port,
     output logic        ce_pix,
     output logic        hblank,
@@ -81,7 +82,7 @@ module tb_top #(
     assign running = !mc_reset;
 
     rabbit_core #(.STEP_COST_BUS(CB), .STEP_COST_INT(CI), .STEP_GAIN(GN)) u_core (
-        .clk(clk), .reset(mc_reset), .cache_flush(reset_in),
+        .clk(clk), .reset(mc_reset), .cache_flush(reset_in), .board_rate(board_rate),
         .m_req(m_req), .m_addr(m_addr), .m_len(m_len), .m_ack(m_ack), .m_valid(m_valid), .m_rdata(m_rdata),
         .in_port(in_port),
         .ee_ld_wr(ee_wr), .ee_ld_addr(ee_wa), .ee_ld_data(ee_wd),

@@ -64,6 +64,7 @@ localparam CONF_STR = {
 	"-;",
 	"O[9:8],Volume,Normal,-6 dB,-12 dB,+6 dB;",
 	"O[10],Swap stereo,No,Yes;",
+	"O[14],Refresh rate,57.6 Hz (board),60 Hz (MAME);",
 	"O[12],Autosave EEPROM,On,Off;",
 	"T[13],Save EEPROM;",
 	"-;",
@@ -275,9 +276,11 @@ wire  [7:0] r, g, b;
 wire signed [15:0] snd_l, snd_r;
 wire        frame_tick;
 
+wire        board_rate = ~status[14];       // the board's 57.61 Hz (default) or MAME's 60 Hz
+
 rabbit_core u_core
 (
-	.clk(clk_sys), .reset(mc_rst), .cache_flush(c_flush),
+	.clk(clk_sys), .reset(mc_rst), .cache_flush(c_flush), .board_rate(board_rate),
 	.m_req(m_req), .m_addr(m_addr), .m_len(m_len), .m_ack(m_ack), .m_valid(m_valid), .m_rdata(m_rdata),
 	.in_port(in_port),
 	.ee_ld_wr(ee_ld_wr && !nv_loaded && !nv_wr), .ee_ld_addr(ee_ld_addr), .ee_ld_data(ee_ld_data),
@@ -305,7 +308,7 @@ assign AUDIO_R = f_vol(status[10] ? snd_l : snd_r, status[9:8]);
 
 // while the machine is held in reset the core's raster does not run: a blank one of the same timing keeps the OSD's "Loading" pop-up alive
 wire        sb_ce, sb_hblank, sb_vblank, sb_hs, sb_vs;
-rabbit_standby u_standby (.clk(clk_sys), .o_ce(sb_ce), .o_hblank(sb_hblank), .o_vblank(sb_vblank), .o_hs(sb_hs), .o_vs(sb_vs));
+rabbit_standby u_standby (.clk(clk_sys), .board_rate(board_rate), .o_ce(sb_ce), .o_hblank(sb_hblank), .o_vblank(sb_vblank), .o_hs(sb_hs), .o_vs(sb_vs));
 reg         sb_on = 1'b1;
 always @(posedge clk_sys) sb_on <= mc_rst;
 

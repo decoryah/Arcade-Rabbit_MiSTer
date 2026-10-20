@@ -1,9 +1,10 @@
-// A blank raster of the core's own timing (15 clocks a dot, 407 dots a line, 262 lines: 15.72 kHz / 60.02 Hz, 320 x 224 picture) for the time
+// A blank raster of the core's own timing (15 clocks a dot, 424 or 407 dots a line as rabbit_video, 262 lines, 320 x 224 picture) for the time
 // the machine is held in reset (the ROM image streaming in, the OSD's Reset): the framework draws its "Loading" pop-up on the OSD, which needs a
 // video signal with sync to sit on. After the Metro core's metro_standby.sv (decoryah/Arcade-Metro_MiSTer, GPL-3.0-or-later).
 `default_nettype none
 module rabbit_standby (
     input  wire clk,
+    input  wire board_rate,
     output reg  o_ce,
     output reg  o_hblank,
     output reg  o_vblank,
@@ -18,7 +19,7 @@ module rabbit_standby (
         dv   <= (dv == 4'd14) ? 4'd0 : dv + 4'd1;
         if (dv == 4'd14) begin
             o_ce <= 1'b1;
-            if (hc == 9'd406) begin
+            if (hc == (board_rate ? 9'd423 : 9'd406)) begin
                 hc <= 9'd0;
                 vc <= (vc == 9'd261) ? 9'd0 : vc + 9'd1;
             end else

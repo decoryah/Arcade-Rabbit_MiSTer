@@ -140,10 +140,28 @@ register log of the same attract mode):
   cleanly: each either clips 5-10 % of the time or wanders (90 % of the energy below 40 Hz). Fitting the recording's waveform with a free
   filter does not separate the candidates either (R^2 0.73-0.79 for all of them on the recording's cleaner right channel). A clean
   recording of single sounds from a board (the test mode's sound test, line out) would decide it.
-* **The output**. The board low-passes the chip's output, roughly two poles at about 3 kHz (the recording against the decoded data:
-  flat to 2.5 kHz, -8 dB at 3.2 kHz, -12 dB at 4 kHz), with a bass cut below about 200 Hz (possibly the recording's).
+* **The decoding, with the Saturn version as a reference.** The Saturn port (1997, CD) has the music as CD audio: track 13 is the
+  attract intro, the arcade's single sample 0bbc77, as a clean 16-bit mono recording (its spectrogram matches the board recording's
+  intro at 0.90; it plays 0.2 % slower). It is not the arcade data's source sample for sample (codes and waveform agree in sign 55 % of
+  the time), but as a clean reference it settles two things. (1) The prediction: the spectrum of the code values over the CD's
+  spectrum follows |1 - z^-1|^2 from 400 Hz to 10 kHz to 1-2 dB (+5.6 dB at 1.9 kHz, +14 dB at 4.8 kHz, re 1 kHz): the codes are
+  first-order differences, as in MAME (and not PCM). (2) The step: per 20 ms window, the level of the reference's x[n] - x[n-1]
+  minus the codes' level is the chip's step over time. On the board recording (the real chip) it rises 7 dB in the first 0.2 s, holds
+  within +-2 dB from 0.2 to 3.2 s while the code mix varies, then falls 12 dB by 3.85 s with the codes' sizes unchanged; where the CD
+  is silent MAME's decoding is 2 dB below full scale. Not found: a step rule of the OKI kind that fits. Of 158,160 first-order
+  decoders (index tables for magnitudes 0-7, step ratios 1.03-1.2, 24-88 steps, no clamp on the sum) every one wanders over the
+  ROM's samples (at least 91 % of the energy below 40 Hz); rules that hold the jingle steady cannot also give the board's bass notes
+  their decay (about -14 dB in 125 ms). Something structural is still unknown (a leak in the sum, or a step that depends on more than
+  the code). The Saturn disc's voice files (16-bit PCM) and sound banks do not hold the arcade samples sample for sample either
+  (sign searches at chance level).
+* **The output**. The I5000 feeds a Toshiba TC9250P (photographs of boards): a 16-bit two-channel resistor-string DAC taking serial
+  data at 1-8 fs, with no digital filter, so the chip's output is 16-bit stereo and all smoothing is analog. The board low-passes it,
+  roughly two poles at about 3 kHz (the recording against the decoded data: flat to 2.5 kHz, -8 dB at 3.2 kHz, -12 dB at 4 kHz), with a
+  bass cut below about 200 Hz (possibly the recording's), into a Toshiba power amplifier for the JAMMA speaker.
 * **The frame rate**. The recording's attract mode runs 4.1 % slower than MAME's 60 Hz (the attract loop: 69.5 s against 67 s), so the
-  board's vblank is about 57.6 Hz; MAME's screen for this driver is a placeholder. The core keeps 60 Hz.
+  board's vblank is about 57.6 Hz (57.64 +- 0.1); MAME's screen for this driver is a placeholder. The board has two oscillators, 40 MHz
+  next to the I5000 and 24 MHz for the 68020, so its raster comes from 40 MHz: any 15 kHz layout of 263 lines that fits (40 MHz / 6 x
+  440 dots, / 4 x 660, / 5 x 528) gives 57.61 Hz. The core's raster offers both (see "Clocks and raster").
 * 31 of the 485 samples end with `7f7f`, a command word `xx07` and a negative word (`febc` etc.), then the usual `7f7f 0000`: probably
   a loop back by that many words (MAME and the core end the sample there). In scripted play one of them is played (01dbc6, 87 times in
   3,000 frames).
@@ -165,8 +183,10 @@ attract mode).
 
 ### Clocks and raster
 
-96 MHz everywhere. Dots of 15 clocks (6.4 MHz), 407 dots x 262 lines: 15.72 kHz, 60.02 Hz (MAME: 60 Hz); 320 x 224 visible, hsync dots
-336-367, vsync lines 232-234. IRQ 6 and the snapshot at the start of line 224.
+96 MHz everywhere. Dots of 15 clocks (6.4 MHz), 262 lines, 320 x 224 visible, hsync dots 336-367, vsync lines 232-234; a line is
+424 dots with "Refresh rate: 57.6 Hz (board)", the default (15.09 kHz, 57.61 Hz, the board's rate), or 407 with "60 Hz (MAME)"
+(15.72 kHz, 60.02 Hz). IRQ 6 and the snapshot at the start of line 224. The game's logic counts frames, so it is the same frame for
+frame at either rate; the longer line only gives the renderer's stages more time.
 
 ### Rendering (rtl/rabbit_video.sv)
 

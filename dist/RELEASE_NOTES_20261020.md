@@ -6,9 +6,10 @@ I5000), with four MRAs: Asia 3-6 (the parent), Asia 1-28, Japan 3-6 and Japan 1-
 **Tested on a real MiSTer by the repository owner: the game and all four versions work.** It was also checked in
 simulation against MAME 0.289, frame for frame (below).
 
-This RBF replaces the first build of the day: the sound now plays at the rate the game sets (47,962 Hz) instead of
-MAME's 39,062.5 Hz, so every sound is at the board's pitch (MAME plays them 23 % slow, 3.5 semitones flat). The
-decoding is still MAME's, which is not the board's: see "Known differences".
+This RBF replaces the earlier builds of the day: the sound plays at the rate the game sets (47,962 Hz) instead of
+MAME's 39,062.5 Hz, so every sound is at the board's pitch (MAME plays them 23 % slow, 3.5 semitones flat); and the
+game runs at the board's 57.6 Hz by default (OSD "Refresh rate", 60 Hz as MAME is the other choice), so it plays at
+the board's speed and tempo. The sound's decoding is still MAME's, which is not the board's: see "Known differences".
 
 ### Install
 
@@ -48,8 +49,8 @@ The OSD's version line reads `v261020`.
 - **The MiSTer top level** (`sim/emu/run_emu.sh`, `Rabbit.sv` with the framework's video path): the fast load and the
   streamed load both put the image in the SDRAM byte-identical to the expected layout, and the pictures the scaler gets
   are MAME's.
-- **Quartus 17.0.2:** 45 % of the ALMs (18,976), 443 of 553 M10K, 43 DSPs; every clock's slack positive (the 96 MHz
-  machine clock +0.827 ns setup, +0.034 ns hold; the tightest, +0.159 ns, is in the framework's HDMI scaler).
+- **Quartus 17.0.2:** 45 % of the ALMs (19,013), 443 of 553 M10K, 43 DSPs; every clock's slack positive (the 96 MHz
+  machine clock +0.635 ns setup, +0.039 ns hold; the tightest, +0.632 ns, is in the framework's HDMI scaler).
   `releases/rabbit_20261020.fit.summary` / `.sta.summary`.
 
 ### Controls
@@ -59,7 +60,8 @@ test switch (the game's settings; the board has no DIP switches).
 
 ### OSD
 
-Aspect ratio, Scale, Scandoubler Fx, Volume, Swap stereo, Autosave EEPROM, Save EEPROM, Reset. See the README.
+Aspect ratio, Scale, Scandoubler Fx, Volume, Swap stereo, Refresh rate (57.6 Hz board / 60 Hz MAME), Autosave EEPROM,
+Save EEPROM, Reset. See the README.
 
 ### Known differences / open points
 
@@ -67,8 +69,9 @@ Aspect ratio, Scale, Scandoubler Fx, Volume, Swap stereo, Autosave EEPROM, Save 
   which their data does not fit (the signal sits at its limit 43 % of the time: the harsh, crunchy sound). The board's
   real decoding is unknown (MAME flags the game's sound as imperfect); `docs/hardware.md` "Sound" has what a recording
   of a real board shows. A clean recording of single sounds from a board would settle it.
-- The board's frame rate seems to be about 57.6 Hz (the recording's attract mode runs 4.1 % slower than MAME's); the core,
-  like MAME, runs at 60 Hz.
+- The board's frame rate is measured, not documented: a recording of a real board runs the attract mode 4.1 % slower than
+  MAME's 60 Hz, and the board's 40 MHz video clock gives 57.61 Hz for a 263-line raster. The core's default is 57.61 Hz;
+  "Refresh rate: 60 Hz (MAME)" gives MAME's speed. The comparisons with MAME above were made at 60 Hz.
 - The 68020 is TG68K.C, paced to MAME's speed by a token bucket calibrated on the power-on test; in stall-free game code
   it is about 10 % faster than MAME's. Where the game races itself (from frame 306 of scripted play its blit queue starts
   some blits a frame earlier than in MAME) a queue index and 16 marker words in the work RAM differ from MAME's; those
