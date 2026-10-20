@@ -10,6 +10,9 @@ This RBF replaces the earlier builds of the day: the sound plays at the rate the
 MAME's 39,062.5 Hz, so every sound is at the board's pitch (MAME plays them 23 % slow, 3.5 semitones flat); and the
 game runs at the board's 57.6 Hz by default (OSD "Refresh rate", 60 Hz as MAME is the other choice), so it plays at
 the board's speed and tempo. The sound's decoding is still MAME's, which is not the board's: see "Known differences".
+The last build of the day adds rmonic79's CRT Adjust (OSD page "CRT Adjust"), names the buttons as the game uses them (Light
+Punch, Heavy Punch, Light Kick, Heavy Kick) and checks every Scandoubler Fx setting and MiSTer.ini's `forced_scandoubler` in
+simulation (none freezes the picture).
 
 ### Install
 
@@ -48,20 +51,27 @@ The OSD's version line reads `v261020`.
   few frames ahead of MAME in the same scenes, as the game waits for its sounds, which now end sooner, as on the board.)
 - **The MiSTer top level** (`sim/emu/run_emu.sh`, `Rabbit.sv` with the framework's video path): the fast load and the
   streamed load both put the image in the SDRAM byte-identical to the expected layout, and the pictures the scaler gets
-  are MAME's.
-- **Quartus 17.0.2:** 45 % of the ALMs (19,013), 443 of 553 M10K, 43 DSPs; every clock's slack positive (the 96 MHz
-  machine clock +0.635 ns setup, +0.039 ns hold; the tightest, +0.632 ns, is in the framework's HDMI scaler).
+  are MAME's. The video modes (`sim/emu/run_modes.sh`, 24 runs): Scandoubler Fx HQ2x, CRT 25 / 50 / 75 % and MiSTer.ini's
+  `forced_scandoubler` at both refresh rates give 448 rows in 524 lines with every frame whole and the same pictures; CRT Adjust
+  sizes and moves the picture exactly as set (H-Size +2 / -16, H-Position +16 / -48, V-Shift +5 / -16) with no frame of the wrong
+  length and no pixel lost; Scale asks the HDMI scaler for the sizes the framework's rule gives.
+- **Quartus 17.0.2:** 46 % of the ALMs (19,257), 446 of 553 M10K, 43 DSPs; every clock's slack positive (the 96 MHz
+  machine clock +0.366 ns setup, +0.077 ns hold; the framework's HDMI scaler +0.370 ns).
   `releases/rabbit_20261020.fit.summary` / `.sta.summary`.
 
 ### Controls
 
-Four buttons (the game's A, B, C, D), Start, Coin, Service per player. Keyboard: 1 / 2 start, 5 / 6 coin, 9 service, F2 the
-test switch (the game's settings; the board has no DIP switches).
+Per player: Light Punch (A), Heavy Punch (B), Light Kick (C), Heavy Kick (D), Start, Coin, Service. A to D are the game's own
+names; which is which was measured in MAME. A pad's default layout puts the punches on the top face buttons and the kicks on the
+bottom ones (Y X / B A), as the Saturn version has them. Keyboard: 1 / 2 start, 5 / 6 coin, 9 service, F2 the test switch (the
+game's settings; the board has no DIP switches).
 
 ### OSD
 
-Aspect ratio, Scale, Scandoubler Fx, Volume, Swap stereo, Refresh rate (57.6 Hz board / 60 Hz MAME), Autosave EEPROM,
-Save EEPROM, Reset. See the README.
+Aspect ratio, Scale (Normal, V-Integer, HV-Integer, Narrower HV-Integer, HV-Integer+), Scandoubler Fx (None, HQ2x, CRT 25 / 50 /
+75 %), CRT Adjust (rmonic79's: H-Size, H-Position, V-Shift for a 15 kHz analog output), Volume, Swap stereo, Refresh rate (57.6 Hz
+board / 60 Hz MAME), Autosave EEPROM, Save EEPROM, Reset. Scandoubler Fx and MiSTer.ini's `forced_scandoubler` work without freezing
+the picture. See the README.
 
 ### Known differences / open points
 

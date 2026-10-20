@@ -42,6 +42,7 @@ module rabbit_core #(
     output logic        ce_pix,
     output logic        hblank,
     output logic        vblank,
+    output logic        vblank_next,
     output logic        hs,
     output logic        vs,
     output logic  [7:0] r,
@@ -114,7 +115,7 @@ module rabbit_core #(
         .b_we(b_we), .b_layer(b_layer), .b_idx(b_idx), .b_hi(b_hi), .b_data(b_data), .blt_active(blt_active), .snap_hold(snap_hold),
         .t_req(m_req[3]), .t_addr(m_addr[3]), .t_len(m_len[3]), .t_ack(m_ack[3]), .t_valid(m_valid[3]),
         .s_req(m_req[4]), .s_addr(m_addr[4]), .s_len(m_len[4]), .s_ack(m_ack[4]), .s_valid(m_valid[4]), .sd_data(m_rdata),
-        .vbl_irq(vbl_irq), .ce_pix(ce_pix), .hblank(hblank), .vblank(vblank), .hs(hs), .vs(vs), .r(r), .g(g), .b(b),
+        .vbl_irq(vbl_irq), .ce_pix(ce_pix), .hblank(hblank), .vblank(vblank), .vblank_next(vblank_next), .hs(hs), .vs(vs), .r(r), .g(g), .b(b),
         .dbg_overrun_a(dbg_overrun_a), .dbg_overrun_b(dbg_overrun_b), .dbg_frame(dbg_frame)
     );
 

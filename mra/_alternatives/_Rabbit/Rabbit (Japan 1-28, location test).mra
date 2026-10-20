@@ -21,7 +21,7 @@
       The game has no DIP switches: its settings are in the EEPROM (the test mode: F2, or Service + Start on a pad).
     -->
 
-    <buttons names="A,B,C,D,Start,Coin,Service" default="A,B,X,Y,Start,Select,L"/>
+    <buttons names="Light Punch (A),Heavy Punch (B),Light Kick (C),Heavy Kick (D),Start,Coin,Service" default="Y,X,B,A,Start,Select,L"/>
 
     <rom index="0" zip="rabbitjt.zip|rabbit.zip" md5="None" address="0x32000000">
         <!-- maincpu -->

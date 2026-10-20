@@ -23,3 +23,6 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_standby.sv
 
 # TG68K.C (LGPL, Tobias Gubener), GHDL-converted with the kernel's default generics (68000 .. 68020 switchable; this core uses CPU = 11)
 set_global_assignment -name VERILOG_FILE modules/cpu-tg68k/gen/tg68k.v
+
+# rmonic79's CRT Adjust (GPL-3.0-or-later, modules/VENDOR.md)
+set_global_assignment -name SYSTEMVERILOG_FILE modules/crt-adjust/crt_adjust.sv

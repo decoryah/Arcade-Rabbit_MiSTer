@@ -1,7 +1,7 @@
 #!/bin/sh
 # End-to-end bench of the MiSTer top level (Rabbit.sv): hps_io and the PLL stubbed, everything else real (after the Mystic Warriors core's).
 #   sim/emu/run_emu.sh <image.rom> <expected.sdram> [frames after the load, default 30] [out prefix]
-# FAST=1 loads through the DDR3 fast-load path. SNAPEVERY=n (default 10).
+# FAST=1 loads through the DDR3 fast-load path, PRELOAD=1 skips the load; SNAPEVERY=n (default 10); the OSD settings: tb_emu.cpp.
 set -e
 export PATH="$HOME/tools/oss-cad-suite/bin:$PATH"
 cd "$(dirname "$0")"
@@ -26,7 +26,7 @@ verilator --cc --exe --build -j ${JOBS:-16} -O2 -Wno-fatal -Wno-WIDTH -Wno-DECLF
     -Wno-PROCASSINIT -Wno-BLKSEQ -Wno-SYNCASYNCNET \
     +1364-2005ext+v -I$OBJ -I. -I../.. -I../../rtl ../waivers.vlt --public-flat-rw \
     --top-module tb_emu_top --prefix Vtb_emu_top -Mdir $OBJ \
-    ../../Rabbit.sv ../../rtl/rabbit_*.sv ../../modules/cpu-tg68k/gen/tg68k.v \
+    ../../Rabbit.sv ../../rtl/rabbit_*.sv ../../modules/crt-adjust/crt_adjust.sv ../../modules/cpu-tg68k/gen/tg68k.v \
     $S/arcade_video.v $OBJ/video_mixer_sim.sv $S/scandoubler.v $S/scanlines.v $S/gamma_corr.sv $S/hq2x.sv $S/video_freezer.sv $S/video_freak.sv $S/math.sv \
     hps_io_stub.sv pll_stub.sv sync_fix.sv ../sdram_model.sv ../ddr_model.sv tb_emu_top.sv tb_emu.cpp \
     > $OBJ.log 2>&1 || { grep -E "%Error" $OBJ.log | head -30; tail -5 $OBJ.log; exit 1; }

@@ -188,6 +188,17 @@ attract mode).
 (15.72 kHz, 60.02 Hz). IRQ 6 and the snapshot at the start of line 224. The game's logic counts frames, so it is the same frame for
 frame at either rate; the longer line only gives the renderer's stages more time.
 
+The video output (`Rabbit.sv`). The framework's `arcade_video` gets the horizontal blank alone on HBlank (toggling on every line,
+vertical blank lines included) and the vertical blank on VBlank: its scandoubler (Scandoubler Fx, MiSTer.ini's
+`forced_scandoubler`) takes its line timing from the horizontal blank's edges and without them loses the vertical sync (a frozen
+picture). While the machine is held in reset, `rabbit_standby` gives a blank raster of the same timing. CRT Adjust (rmonic79's
+`crt_adjust`, `modules/crt-adjust`) sits in front of `arcade_video`: the picture goes through a one-line buffer, written at the dot
+rate and read at one dot every (60 + H-Size) quarter clocks, so a size step is 1/60 of a dot; H-Position moves the picture in the
+buffer and V-Shift delays the vertical sync by whole lines (one line by default, as the buffer delays the picture by one). The
+buffer needs the vertical blank of the line after the current one (`vblank_next` of `rabbit_video` and `rabbit_standby`). The
+picture is 320 dots, 88 (57.6 Hz) or 71 (60 Hz) dots after the hsync pulse starts and 16 before the next, so H-Size goes to +2 and
+H-Position to +16; it is off while the scandoubler is on.
+
 ### Rendering (rtl/rabbit_video.sv)
 
 A line is made in three steps of one line time (6105 clocks) each:

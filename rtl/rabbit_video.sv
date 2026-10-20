@@ -62,6 +62,7 @@ module rabbit_video (
     output logic        ce_pix,
     output logic        hblank,
     output logic        vblank,
+    output logic        vblank_next,        // the vertical blank of the line after the current one (CRT Adjust's line buffer wants it)
     output logic        hs,
     output logic        vs,
     output logic  [7:0] r,
@@ -457,6 +458,7 @@ module rabbit_video (
             r <= rgb_next[15:8]; g <= rgb_next[23:16]; b <= rgb_next[7:0];
             hblank <= !(nh < 9'd320);
             vblank <= !(nv < 9'd224);
+            vblank_next <= (nv >= 9'd223) && (nv != 9'd261);
             hs     <= (nh >= 9'd336) && (nh < 9'd368);
             vs     <= (nv >= 9'd232) && (nv < 9'd235);
         end

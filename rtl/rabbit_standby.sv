@@ -8,12 +8,13 @@ module rabbit_standby (
     output reg  o_ce,
     output reg  o_hblank,
     output reg  o_vblank,
+    output reg  o_vblank_next,     // the next line's vertical blank (as rabbit_video's vblank_next)
     output reg  o_hs,
     output reg  o_vs
 );
     reg [3:0] dv = 4'd0;
     reg [8:0] hc = 9'd0, vc = 9'd0;
-    initial begin o_ce = 1'b0; o_hblank = 1'b1; o_vblank = 1'b1; o_hs = 1'b0; o_vs = 1'b0; end
+    initial begin o_ce = 1'b0; o_hblank = 1'b1; o_vblank = 1'b1; o_vblank_next = 1'b1; o_hs = 1'b0; o_vs = 1'b0; end
     always @(posedge clk) begin
         o_ce <= 1'b0;
         dv   <= (dv == 4'd14) ? 4'd0 : dv + 4'd1;
@@ -27,6 +28,7 @@ module rabbit_standby (
             o_hblank <= (hc >= 9'd320);
             o_hs     <= (hc >= 9'd336) && (hc < 9'd368);
             o_vblank <= (vc >= 9'd224);
+            o_vblank_next <= (vc >= 9'd223) && (vc != 9'd261);
             o_vs     <= (vc >= 9'd232) && (vc < 9'd235);
         end
     end

@@ -27,7 +27,11 @@ No ROMs or other copyrighted data are in this repository; you supply your own MA
 
 ## Controls and OSD
 
-Four buttons (the game's A, B, C and D) per player, Start, Coin, Service. Keyboard: 1 / 2 start, 5 / 6 coin, 9 service, F2 the test
+Four buttons per player, Start, Coin, Service. The buttons are named as the game uses them: **Light Punch (A), Heavy Punch (B), Light
+Kick (C), Heavy Kick (D)**; A to D are the game's own names (its input test, and texts such as the beast attack's "A, B, and C buttons
+at the same time"), and which is which was measured in MAME 0.289: Wu-Ling's umbrella strikes on A and B, her kicks on C and D, the
+damage on an idle opponent 4, 10, 5 and 11 pixels of the health bar. A pad's default layout puts the punches on the top face buttons and
+the kicks on the bottom ones (Y X / B A), as the Saturn version has them. Keyboard: 1 / 2 start, 5 / 6 coin, 9 service, F2 the test
 switch (the game's settings: it has no DIP switches). The settings and the high scores are kept in the board's EEPROM, which MiSTer saves
 to the SD card (`<nvram>`): automatically when the OSD is opened after the game wrote it (Autosave EEPROM On) or with Save EEPROM. The
 file is MAME's `nvram/rabbit/eeprom`, so settings can be copied between MAME and the core.
@@ -36,7 +40,8 @@ file is MAME's `nvram/rabbit/eeprom`, so settings can be copied between MAME and
 |---|---|
 | Aspect ratio | Original (4:3), Full Screen, [ARC1], [ARC2] |
 | Scale | Normal, V-Integer, HV-Integer, Narrower HV-Integer, HV-Integer+ (the framework's integer scaling for HDMI) |
-| Scandoubler Fx | None, HQ2x, CRT 25 / 50 / 75 % |
+| Scandoubler Fx | None, HQ2x, CRT 25 / 50 / 75 % (and MiSTer.ini's `forced_scandoubler`: the core gives the scandoubler the horizontal blank on every line, vertical blank lines included, so its picture does not freeze) |
+| CRT Adjust (page) | Off, On; H-Size 0 to +2 and -16 to -1, H-Position -48 to +16, V-Shift -16 to +15. rmonic79's CRT Adjust (`modules/crt-adjust`) for a 15 kHz analog output: the picture's size and place on the tube are changed through a line buffer while the sync pulses keep their timing, so the monitor stays locked. A size step is 1/60 of a dot (5.3 dots across the picture); +2 and +16 are the most that fit before the next hsync pulse. At 60 Hz the picture's left edge meets the hsync pulse past H-Position -39 (at 57.6 Hz past -56) and is cut there. It does nothing while the scandoubler is on (31 kHz) |
 | Volume | Normal, -6 dB, -12 dB, +6 dB |
 | Swap stereo | No, Yes |
 | Refresh rate | 57.6 Hz (board, the default), 60 Hz (MAME): see "Known differences" |
@@ -50,8 +55,8 @@ file is MAME's `nvram/rabbit/eeprom`, so settings can be copied between MAME and
 | Video against MAME 0.289 | `sim/run_frames.sh`: MAME's video state (tilemaps, sprite RAM, palette, registers) dumped at a frame by `tools/lua/dump_state.lua` and rendered by the core's video chip with the real SDRAM path, compared with MAME's snapshot of that frame: **584 of 584 frames pixel-identical**: 240 of the attract mode (every 25th frame to 6,000: the logos, the story, the demo fights) and 344 of scripted play (coin, start, character select, fights with special moves and the summoned beasts, to frame 9,000), 29 of them zoomed (down to MAME's full zoom-out). No line ran out of time |
 | Sound against MAME 0.289 | The sound chip is MAME's I5000 except for its sample rate, which the core takes from register 0x46 as the game sets it (47,962 Hz; MAME a fixed 39,062.5 Hz, see "Known differences"). `sim/run_snd.sh`: every write the game made to the I5000's registers in scripted play (`tools/lua/snd_log.lua`, with their times) replayed into the core's sound chip with the real SDRAM path, its output compared with `tools/i5000_ref.py` (MAME's device in Python with the game's rate) on the same writes (`tools/audio_cmp.py`): the loudness envelopes (RMS per frame) correlate **0.9999** on both channels with no lag, the level is within 0.2 %, every frequency band within 0.2 dB. The reference itself, at MAME's rate (`--mame-rate`), against MAME's `-wavwrite` recording of that run: 0.9998, level within 0.6 %. (At MAME's rate the core's chip matched MAME's recording directly: 0.9997, and the same value as MAME in all 788 reads of the channel status in 1,000 frames of the attract mode.) |
 | Whole machine | `sim/run_sys.sh`: the 68020 running the game's program, the blitter, the sound chip and the video chip behind the SDRAM controller and a behavioural SDRAM (which checks the timing: no tRC, tRP, tRRD, tRFC or tRAS violation in billions of clocks). It boots, reads its EEPROM and runs on MAME's timeline frame for frame: the work RAM at vblank is byte for byte MAME's at the same frame number (`tools/cmp_ram.py`; the attract mode at frames 130-800, scripted play at every frame to 305), and the pictures are pixel-identical to MAME's of the same frame (`tools/cmp_lag.py`, lag 0): every frame of the attract mode 600-820 and of scripted play 291-421 (coin, start, the character select), and every 50th of scripted play to 1600. Its sound over those 1600 frames against MAME's `-wavwrite` recording of the same inputs: envelope correlation 0.99, level within 1 %. These runs were made with MAME's sample rate. With the game's rate (this build) the attract mode is MAME's frame for frame up to frame 650 (work RAM byte-identical at 130-600, pictures at every 50th frame to 650); then the game, which waits for its sounds to finish, runs a few frames ahead of MAME in the same scenes (the samples now end 23 % sooner, as on the board). At the board's 57.61 Hz (the default; `BOARD=1` in the bench) the frame period is 1,666,320 clocks and the run is the same: MAME's frame for frame (work RAM byte-identical at 130-600, pictures at every 50th frame to 650) |
-| MiSTer top level | `sim/emu/run_emu.sh`: `Rabbit.sv` with the framework's video path (`arcade_video`, scaler input), `hps_io` and the PLL stubbed, the DDR3 and SDRAM modelled: both the MRA's fast load (the image in the DDR3 at 0x32000000) and the streamed load leave the SDRAM byte-identical to the expected layout (1.39 s of machine time, the SDRAM's write rate), and the pictures the scaler gets are MAME's |
-| Quartus 17.0.2 | 45 % of the ALMs (19,013), 443 of 553 M10K, 43 DSPs; every clock's slack positive (the 96 MHz machine clock +0.635 ns setup, +0.039 ns hold; the tightest, +0.632 ns, is the framework's HDMI scaler): `releases/rabbit_20261020.fit.summary` / `.sta.summary` |
+| MiSTer top level | `sim/emu/run_emu.sh`: `Rabbit.sv` with the framework's video path (`arcade_video`, scaler input), `hps_io` and the PLL stubbed, the DDR3 and SDRAM modelled: both the MRA's fast load (the image in the DDR3 at 0x32000000) and the streamed load leave the SDRAM byte-identical to the expected layout (1.39 s of machine time, the SDRAM's write rate), and the pictures the scaler gets are MAME's. `sim/emu/run_modes.sh`, the video modes (24 runs, each checking every frame's period, the rows and lines of the raster, where the rows sit and the size asked of the scaler, and its pictures against the plain run's of the same frame): both refresh rates; Scandoubler Fx HQ2x, CRT 25 / 50 / 75 % and MiSTer.ini's `forced_scandoubler` at both rates give 448 rows in 524 lines, every frame whole, the same pictures (HQ2x's interpolated edges aside); CRT Adjust On is the plain picture to the clock, H-Size +2 and -16, H-Position +16 and -48, V-Shift +5 and -16 move and size the rows exactly as set with every frame whole and no pixel lost, and it stands aside under the scandoubler; Scale's five settings ask the scaler for the size the framework's rule gives (1920 x 1080 and 1280 x 720, Original and Full Screen, with HQ2x). Runs of 200 frames, into the attract mode where the picture changes, with `forced_scandoubler`, HQ2x and CRT Adjust (H-Size +1, H-Position -8, V-Shift +2): every frame whole, the pictures the plain run's at every 20th frame (CRT Adjust's one frame along in the bench's count, as its V-Shift moves the sync earlier; the first picture of the game appears at the same moment in every mode: CRT Adjust adds a line of delay, not a frame) |
+| Quartus 17.0.2 | 46 % of the ALMs (19,257), 446 of 553 M10K, 43 DSPs; every clock's slack positive (the 96 MHz machine clock +0.366 ns setup, +0.077 ns hold; the framework's HDMI scaler +0.370 ns): `releases/rabbit_20261020.fit.summary` / `.sta.summary` |
 | Lint | Verilator `-Wall` (`sim/lint.sh`) |
 
 ## Known differences / open points
@@ -84,10 +89,10 @@ file is MAME's `nvram/rabbit/eeprom`, so settings can be copied between MAME and
 |---|---|
 | `Rabbit.sv`, `Rabbit.q*`, `Rabbit.sdc`, `files.qip` | the MiSTer top level (`emu`), Quartus project, timing constraints |
 | `rtl/` | the machine: `rabbit_core` (the board), `rabbit_main` (68020 bus), `rabbit_video` (the video chip: snapshot, mixing, raster) with `rabbit_tilegen` and `rabbit_sprgen`, `rabbit_blitter`, `rabbit_i5000` (sound), `rabbit_eeprom`, `rabbit_cache` (program cache); the platform: `rabbit_sdram`, `rabbit_loader`, `rabbit_fastload`, `rabbit_standby` |
-| `modules/` | TG68K.C (vendored, with its GHDL conversion `gen/tg68k.v`) |
+| `modules/` | vendored: TG68K.C (with its GHDL conversion `gen/tg68k.v`), rmonic79's CRT Adjust (`modules/VENDOR.md`) |
 | `sys/` | the MiSTer framework |
 | `mra/` | the MRAs (`tools/make_mra.py`) |
-| `sim/` | Verilator benches: the whole machine (`run_sys.sh`), the frozen-state frame bench (`run_frames.sh`), the sound replay bench (`run_snd.sh`), the MiSTer top level (`emu/run_emu.sh`), lint |
+| `sim/` | Verilator benches: the whole machine (`run_sys.sh`), the frozen-state frame bench (`run_frames.sh`), the sound replay bench (`run_snd.sh`), the MiSTer top level (`emu/run_emu.sh`, and its video modes `emu/run_modes.sh`), lint |
 | `tools/` | ROM image builder (`rabbit_rom.py`), MRA writer, MAME Lua probes (`lua/dump_state.lua` states and snapshots, `lua/snd_log.lua` sound register log, `lua/watch.lua` write watch) and the runner (`mame_dump.sh`), Python reference renderer (`rabbit_ref.py`), comparisons (`cmp_frame.py`, `cmp_lag.py`, `cmp_ram.py`, `audio_cmp.py`), MAME's I5000 in Python with the game's sample rate (`i5000_ref.py`), release zip (`package.py`) |
 | `docs/hardware.md` | the hardware as MAME describes it, the game's timing, and the core's design |
 
@@ -112,9 +117,11 @@ The benches need Verilator 5 (in WSL), Python 3 and your romset:
 * **MAME**: the rabbit driver (David Haywood), the I5000 sound device (hap), the OKI ADPCM decoder; the hardware knowledge and the
   reference for every comparison.
 * **Tobias Gubener**: TG68K.C (LGPL-3.0).
+* **rmonic79 (Umberto Parisi)**, with Andrea Bogazzi (asturur): CRT Adjust (GPL-3.0-or-later).
 * **decoryah/Arcade-Metro_MiSTer**: the SDRAM protocol and its simulation model (from searchsolved's Arcade-HyperDuel_MiSTer), the fast
   load, the 93C46 EEPROM, the standby raster.
-* The owner's Mystic Warriors core: the TG68K bus sequencing and its timing constraints, the program cache, the bench conventions.
+* The owner's Mystic Warriors core: the TG68K bus sequencing and its timing constraints, the program cache, the bench conventions, the
+  CRT Adjust glue and the scandoubler's blanking rule.
 * The MiSTer framework (Sorgelig and contributors).
 
 ## Licence
