@@ -3,7 +3,12 @@
 Aorn / Electronic Arts' **Rabbit** (1997), the one-on-one fighting game on the VG5330-B board (68EC020 and the Imagetek
 I5000), with four MRAs: Asia 3-6 (the parent), Asia 1-28, Japan 3-6 and Japan 1-28 (location test).
 
-**First build. Not yet run on a real MiSTer.** It was checked in simulation against MAME 0.289, frame for frame (below).
+**Tested on a real MiSTer by the repository owner: the game and all four versions work.** It was also checked in
+simulation against MAME 0.289, frame for frame (below).
+
+This RBF replaces the first build of the day: the sound now plays at the rate the game sets (47,962 Hz) instead of
+MAME's 39,062.5 Hz, so every sound is at the board's pitch (MAME plays them 23 % slow, 3.5 semitones flat). The
+decoding is still MAME's, which is not the board's: see "Known differences".
 
 ### Install
 
@@ -27,20 +32,24 @@ The OSD's version line reads `v261020`.
   core's video pipeline with the real SDRAM path): **584 of 584 frames pixel-identical** to MAME's snapshots (240 of the
   attract mode to frame 6,000, 344 of scripted play to frame 9,000 with coin, start, the character select, fights with
   special moves and summoned beasts; 29 of them zoomed, down to MAME's full zoom-out). No line ran out of time.
-- **The sound chip against MAME 0.289** (`sim/run_snd.sh`, 3,000 frames of the game's register writes replayed): the
-  loudness envelopes correlate 0.9997 with MAME's `-wavwrite` recording on both channels, the level within 0.6 %; every
-  one of 788 reads of the channel status in the attract mode gets MAME's value.
+- **The sound chip** (`sim/run_snd.sh`, the game's register writes in scripted play replayed): MAME's I5000 except for
+  the sample rate, which it takes from register 0x46 as the game sets it. Against `tools/i5000_ref.py` (MAME's device in
+  Python at the game's rate): loudness envelopes correlate 0.9999 on both channels, level within 0.2 %, every frequency
+  band within 0.2 dB; the reference at MAME's rate against MAME's own `-wavwrite` recording: 0.9998, level within 0.6 %.
+  The rate is the one a recording of a real board plays its samples at (to 0.05 %).
 - **The whole machine** (`sim/run_sys.sh`: the 68020 running the game's program, blitter, sound and video behind the SDRAM
   controller and a behavioural SDRAM that checks its timing): it boots, reads its EEPROM and runs on MAME's timeline frame
   for frame: the work RAM at vblank is byte for byte MAME's at the same frame (the attract mode at 130-800, scripted play
   at every frame to 305), and the pictures are MAME's of the same frame (every frame of the attract mode 600-820 and of
   scripted play 291-421, every 50th of scripted play to 1600); its sound over those 1600 frames against MAME's recording
-  of the same inputs: envelope correlation 0.99, level within 1 %. No SDRAM timing violation, no renderer overrun.
+  of the same inputs: envelope correlation 0.99, level within 1 %. No SDRAM timing violation, no renderer overrun. (Those
+  runs used MAME's sample rate; with the game's rate the attract mode is MAME's frame for frame to frame 650, then runs a
+  few frames ahead of MAME in the same scenes, as the game waits for its sounds, which now end sooner, as on the board.)
 - **The MiSTer top level** (`sim/emu/run_emu.sh`, `Rabbit.sv` with the framework's video path): the fast load and the
   streamed load both put the image in the SDRAM byte-identical to the expected layout, and the pictures the scaler gets
   are MAME's.
-- **Quartus 17.0.2:** 45 % of the ALMs (18,929), 443 of 553 M10K, 43 DSPs; every clock's slack positive (the 96 MHz
-  machine clock +0.800 ns setup, +0.026 ns hold; the tightest, +0.686 ns, is in the framework's HDMI scaler).
+- **Quartus 17.0.2:** 45 % of the ALMs (18,976), 443 of 553 M10K, 43 DSPs; every clock's slack positive (the 96 MHz
+  machine clock +0.827 ns setup, +0.034 ns hold; the tightest, +0.159 ns, is in the framework's HDMI scaler).
   `releases/rabbit_20261020.fit.summary` / `.sta.summary`.
 
 ### Controls
@@ -54,7 +63,12 @@ Aspect ratio, Scale, Scandoubler Fx, Volume, Swap stereo, Autosave EEPROM, Save 
 
 ### Known differences / open points
 
-- Not yet run on a real MiSTer.
+- **The sound is not yet the board's.** The pitch is now right, but the samples are still decoded with MAME's OKI ADPCM,
+  which their data does not fit (the signal sits at its limit 43 % of the time: the harsh, crunchy sound). The board's
+  real decoding is unknown (MAME flags the game's sound as imperfect); `docs/hardware.md` "Sound" has what a recording
+  of a real board shows. A clean recording of single sounds from a board would settle it.
+- The board's frame rate seems to be about 57.6 Hz (the recording's attract mode runs 4.1 % slower than MAME's); the core,
+  like MAME, runs at 60 Hz.
 - The 68020 is TG68K.C, paced to MAME's speed by a token bucket calibrated on the power-on test; in stall-free game code
   it is about 10 % faster than MAME's. Where the game races itself (from frame 306 of scripted play its blit queue starts
   some blits a frame earlier than in MAME) a queue index and 16 marker words in the work RAM differ from MAME's; those

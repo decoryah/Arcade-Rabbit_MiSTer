@@ -121,6 +121,33 @@ playing channels. 0x43: key off. A sample is `7f7f`, a format word (0104 / 0304:
 (little-endian words, codes from the low bits up, OKI ADPCM), ended by a `7f7f` word. A channel's output is `signal * volume / 128`
 (C division), the mix is scaled by 32768 * 16 to full range. Output 0 is the right speaker, output 1 the left.
 
+MAME flags the game's sound as imperfect, and its device notes the ADPCM type and the volume balance as unverified. Compared with a
+recording of a real board (the attract mode on YouTube, "[Arcade PCB] Rabbit Just play (Not MAME)", AAC 44.1 kHz, matched against MAME's
+register log of the same attract mode):
+
+* **The sample rate** (used by the core). At boot the game writes `0x85a0` to register 0x46 (its sound driver at 1fc85a builds it as
+  0x8000 + (1 << 10) + 416), and the other global registers 0x40 = `000c`, 0x41 = `0020`, 0x45 = `ffff`; MAME ignores them. With
+  rate = 40 MHz / (2 * (d[9:0] + 1)) = 47,962 Hz the board's samples line up with the ROM data: a solo sample's harmonic structure
+  correlates 0.95 with the recording at 1.2280 x MAME's rate, which is 47,970 Hz (the capture's own clock limits it to about 0.05 %);
+  MAME's 39,062.5 Hz plays every sound 23 % slow, 3.5 semitones flat. The music's other frequency settings scale the same way, so the
+  frequency formula is otherwise MAME's. The core takes the rate from register 0x46 (MAME's until the game writes it). Register 0x41
+  reads as a busy flag (bit 15) that the driver waits on; MAME's 0 is fine.
+* **The decoding** (not solved; the core keeps MAME's). MAME's OKI ADPCM sits at its 12-bit clamp for 43 % of every decoded sample: the
+  data's codes are not OKI's. They are differential (their autocorrelation is +0.56 at lag 1, 0.07 at lag 2, negative at 3-5, not that
+  of PCM), sign-magnitude with code 8 the smallest negative step, and magnitude 7 piles up in same-sign runs (15 % of all codes, 45 % of
+  them followed by another 7; slope overload). No integrating decoder of the OKI family (step tables with ratios 1.05-1.2 and 49 or 89
+  entries, index tables from (-1, 2, 4, 6, 8) down to (-1, 1, 1, 2, 2) and with larger decrements, 16-bit signal) rebuilds the samples
+  cleanly: each either clips 5-10 % of the time or wanders (90 % of the energy below 40 Hz). Fitting the recording's waveform with a free
+  filter does not separate the candidates either (R^2 0.73-0.79 for all of them on the recording's cleaner right channel). A clean
+  recording of single sounds from a board (the test mode's sound test, line out) would decide it.
+* **The output**. The board low-passes the chip's output, roughly two poles at about 3 kHz (the recording against the decoded data:
+  flat to 2.5 kHz, -8 dB at 3.2 kHz, -12 dB at 4 kHz), with a bass cut below about 200 Hz (possibly the recording's).
+* **The frame rate**. The recording's attract mode runs 4.1 % slower than MAME's 60 Hz (the attract loop: 69.5 s against 67 s), so the
+  board's vblank is about 57.6 Hz; MAME's screen for this driver is a placeholder. The core keeps 60 Hz.
+* 31 of the 485 samples end with `7f7f`, a command word `xx07` and a negative word (`febc` etc.), then the usual `7f7f 0000`: probably
+  a loop back by that many words (MAME and the core end the sample there). In scripted play one of them is played (01dbc6, 87 times in
+  3,000 frames).
+
 ## 8. The game's timing, and why the core keeps two copies of the video state
 
 Probed in MAME (a write tap on every video memory and register, with the beam line): the game writes its video registers and most of the

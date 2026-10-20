@@ -1,6 +1,7 @@
 //------------------------------------------------------------------------------
 // The Imagetek I5000's sound side as MAME 0.289 emulates it (src/devices/sound/i5000.cpp, hap): 16 ADPCM channels (OKI ADPCM, 4-bit or
-// 3-bit codes) read from a 4 MB sample ROM, with an 8-bit volume per side, at 40 MHz / 1024 = 39062.5 samples a second.
+// 3-bit codes) read from a 4 MB sample ROM, with an 8-bit volume per side. One difference from MAME: the sample rate is the one the
+// game sets in register 0x46 (47,962 Hz; MAME: a fixed 40 MHz / 1024 = 39062.5 Hz, every sound 23 % slow), see the sample clock below.
 //
 // Registers (16-bit, at 400900 + 2 * reg; only whole-word writes count):
 //   ch * 4 + 0 / 1   the sample's address (word address in the ROM: low / high word), used at key on
@@ -8,6 +9,7 @@
 //   ch * 4 + 3       volume: right d[7:0], left d[15:8], each through MAME's table (2047 / 1.032^v, 255 = silent)
 //   0x42             key on (write: the set channels that are not playing start), playing channels (read)
 //   0x43             key off
+//   0x46             the sample rate: 40 MHz / (2 * (d[9:0] + 1)) (inferred: the game's only value, 0x85a0, and a board recording)
 // A sample starts with 7f7f and a format word (0104 / 0304: 3-bit codes, else 4-bit), its data from the fourth word on (little-endian
 // words, codes from the low bits up), and ends with a word 7f7f (and one more word).
 //
@@ -64,8 +66,12 @@ module rabbit_i5000 #(
         if (rreg == 7'h42) for (int c = 0; c < 16; c++) rdata[c] = playing[c] | konp[c];
     end
 
-    // ------------------------------------------------------------------ the sample clock: 96 MHz * 5 / 12288 = 39062.5 Hz
-    logic [13:0] tacc;
+    // ------------------------------------------------------------------ the sample clock: a sample every 2 * (N + 1) clocks of the chip's
+    // 40 MHz, N = register 0x46 bits 9:0 (counted here in 96 MHz clocks * 5 / 12). MAME runs the chip at 40 MHz / 1024 (N = 511) and
+    // ignores the register; the game writes 0x85a0 at boot (N = 416: 47,962 Hz), which is the rate a recording of a real board plays
+    // its samples at (to 0.01 %). Until the register is written the rate is MAME's.
+    logic [15:0] tacc;
+    logic [15:0] tlim;
     logic        tick_pend;
 
     // ------------------------------------------------------------------ the state machine
@@ -144,7 +150,7 @@ module rabbit_i5000 #(
     always_ff @(posedge clk) begin
         if (ack) req <= 1'b0;
         if (reset) begin
-            fs <= F_IDLE; req <= 1'b0; tacc <= '0; tick_pend <= 1'b0; out_l <= '0; out_r <= '0;
+            fs <= F_IDLE; req <= 1'b0; tacc <= '0; tlim <= 16'd12288; tick_pend <= 1'b0; out_l <= '0; out_r <= '0;
             for (int c = 0; c < 16; c++) begin
                 playing[c] <= 1'b0; konp[c] <= 1'b0; a_lo[c] <= '0; a_hi[c] <= '0; fbase[c] <= 12'h1ff << 3;
                 volr[c] <= 12'd2047; voll[c] <= 12'd2047; outr[c] <= '0; outl[c] <= '0;
@@ -152,8 +158,8 @@ module rabbit_i5000 #(
             end
         end else begin
             // the sample clock
-            if (tacc + 14'd5 >= 14'd12288) begin tacc <= tacc + 14'd5 - 14'd12288; tick_pend <= 1'b1; end
-            else tacc <= tacc + 14'd5;
+            if (tacc + 16'd5 >= tlim) begin tacc <= tacc + 16'd5 - tlim; tick_pend <= 1'b1; end
+            else tacc <= tacc + 16'd5;
 
             case (fs)
                 F_IDLE: begin
@@ -279,6 +285,9 @@ module rabbit_i5000 #(
                     end
                 end else if (rreg == 7'h43) begin
                     for (int c = 0; c < 16; c++) if (wdata[c]) begin playing[c] <= 1'b0; konp[c] <= 1'b0; end
+                end else if (rreg == 7'h46) begin
+                    tlim <= ({6'd0, wdata[9:0]} + 16'd1) * 16'd24;          // 12 * 2 * (N + 1)
+                    tacc <= '0;
                 end
             end
         end
