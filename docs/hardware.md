@@ -105,6 +105,13 @@ itself is 8 bits). MAME does the whole list at the moment of the starting write.
 The game queues blits and starts each from the previous one's interrupt, so with MAME's fixed 500 us a frame's tilemap updates are spread
 over several milliseconds after vblank.
 
+The queue: 128 entries of 16 bytes at ff5cee (the three blitter dwords, a word, the starting word), ff5cec the next entry to start, ff5ced
+the next free one. 5ef4 queues an entry (its word +12 cleared). IRQ 4's handler (5e60) waits for the busy bit, then starts the next entry
+if there is one; when the queue has run dry the chain stops, and the main loop restarts it once after the next vblank (1023a:
+`jsr $5eba` if the queue is not empty, without looking at the blitter; 5eba also sets the entry's word +12 to 1). So the frame a blit is
+done in can hang on the CPU's speed: when the game queues its blits shortly after the chain's last interrupt, they wait for the next
+frame; shortly before, the interrupt starts them in this one.
+
 ## 7. Sound (`i5000snd_device`)
 
 16 channels at 40 MHz / 1024 = 39062.5 samples per second. Per channel: the sample's address (registers 4n, 4n + 1), frequency (4n + 2:
@@ -174,3 +181,12 @@ it the game waits out a fixed 120-frame warning screen, so the frame in which th
 into frame 6, and the work RAM is then byte for byte MAME's at the same frame numbers (`tools/cmp_ram.py`). Without the cache's fast
 answer the test ended a frame late and every later frame of the core was one behind MAME; at full speed it ended a frame early. Elsewhere
 the game waits for vblank in its idle loop at 101f2 about half of every frame in MAME (~17,000 iterations; the core ~28,800).
+
+Where the core is not MAME's (measured with the write watches, `tools/lua/watch.lua` and `sim/tb_top.sv` `+WATCHLO/+WATCHHI`, and the
+bench's `+STEPSTATS` step counts): in scripted play, frame 305, the game code from the blit start at 5eea to the queueing at 5f1a takes
+the core 995 us (13,917 steps: 58 % opcode fetches, 15 % reads, 12 % writes, 15 % internal; 71 % of the clocks waiting for tokens, 14 % for
+the bus) and MAME 1,109 us: the core is 10 % fast there. The calibration stretch is different: the ROM checksum misses the program cache
+all the time, so 21-27 % of the core's clocks there wait for the SDRAM (2.8 % of its steps are writes), while MAME's memory has no
+latency at all. The step costs that make the core's power-on test as long as MAME's therefore make stall-free game code a little short.
+A closer fit needs a second calibration point in game code (or a cache that hides its fills), which would move the costs: the
+timeline (the frame the power-on test ends in) has only ~0.5 % of slack. The blit-queue race of section 6 is where this shows.
