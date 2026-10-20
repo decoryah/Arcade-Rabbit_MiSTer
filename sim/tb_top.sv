@@ -2,7 +2,11 @@
 // with the image's SDRAM layout (+SDRAM=<file>, tools/rabbit_rom.py --sdram). The EEPROM's default comes from +EEPROM=<file> (128 bytes)
 // through the loader port, before the machine leaves reset. Driven by sim/tb_rabbit.cpp.
 `default_nettype none
-module tb_top (
+module tb_top #(
+    parameter int CB = 47,               // rabbit_main STEP_COST_BUS / STEP_COST_INT / STEP_GAIN (calibration runs: -GCB=..)
+    parameter int CI = 40,
+    parameter int GN = 8
+) (
     input  logic        clk,
     input  logic        reset_in,
     input  logic [31:0] in_port,
@@ -76,7 +80,7 @@ module tb_top (
     always_ff @(posedge clk) mc_reset <= reset_in || !sd_ready || (ee_i < 8'd128) || ee_wr;
     assign running = !mc_reset;
 
-    rabbit_core u_core (
+    rabbit_core #(.STEP_COST_BUS(CB), .STEP_COST_INT(CI), .STEP_GAIN(GN)) u_core (
         .clk(clk), .reset(mc_reset), .cache_flush(reset_in),
         .m_req(m_req), .m_addr(m_addr), .m_len(m_len), .m_ack(m_ack), .m_valid(m_valid), .m_rdata(m_rdata),
         .in_port(in_port),

@@ -19,14 +19,14 @@
 `default_nettype none
 
 module rabbit_main #(
-    parameter int STEP_COST_BUS = 4,
-    parameter int STEP_COST_INT = 4,
-    parameter int STEP_GAIN     = 1
+    parameter int STEP_COST_BUS = 47,
+    parameter int STEP_COST_INT = 40,
+    parameter int STEP_GAIN     = 8
 ) (
     input  logic        clk,
     input  logic        reset,
 
-    // program ROM (rabbit_cache)
+    // program ROM (rabbit_cache): a one-clock request in the step's clock, answered by a (combinational) ack with the word
     output logic        rom_req,
     output logic [19:0] rom_addr,        // word address
     input  logic        rom_ack,
@@ -171,6 +171,8 @@ module rabbit_main #(
     wire [6:0] step_cost = is_int ? 7'(STEP_COST_INT) : 7'(STEP_COST_BUS);
     wire cpu_step = (bst == B_IDLE) && (tok >= step_cost) && !clkena && (step_gap == 3'd0);
     wire cpu_wr   = cpu_step && (fc != 3'b111) && !is_int && is_wr;
+    assign rom_req  = cpu_step && (fc != 3'b111) && !is_int && !is_wr && sel_rom;
+    assign rom_addr = A[20:1];
 
     // gfx1 byte offset of the readback word (bank 0 of MAME's region, the window's u32s read as MAME's little-endian host does: the CPU's
     // high word is region bytes 3, 2 and its low word bytes 1, 0); its SDRAM word: 0x100000 + {b[22:2], b[23], b[1]} (rabbit_loader.sv)
@@ -190,7 +192,7 @@ module rabbit_main #(
         if (reset) begin
             bst <= B_IDLE; tok <= '0; step_gap <= '0;
             irq6_pend <= 1'b0; irq4_pend <= 1'b0;
-            rom_req <= 1'b0; gr_req <= 1'b0; v_req <= 1'b0;
+            gr_req <= 1'b0; v_req <= 1'b0;
             eep_cs <= 1'b0; eep_di <= 1'b0; eep_clk <= 1'b0;
             for (int i = 0; i < 3; i++) blt_regs[i] <= '0;
         end else begin
@@ -219,7 +221,7 @@ module rabbit_main #(
                     end else begin
                         tok <= tok - step_cost;
                         if (sel_rom) begin
-                            rom_req <= 1'b1; rom_addr <= A[20:1]; bst <= B_WAIT_ROM;
+                            bst <= B_WAIT_ROM;                // rom_req goes out in this clock
                         end else if (sel_grom) begin
                             gr_req <= 1'b1; gr_addr <= 24'h100000 + 24'({gb[17:2], 1'b0, gb[1]}); gr_taken <= 1'b0; bst <= B_WAIT_GR;
                         end else if (sel_vreg || sel_vmem) begin
@@ -232,7 +234,7 @@ module rabbit_main #(
                     data_in <= rd_mux; clkena <= 1'b1; dbg_step <= 1'b1; bst <= B_IDLE;
                 end
                 B_WAIT_ROM: if (rom_ack) begin
-                    rom_req <= 1'b0; data_in <= rom_q; clkena <= 1'b1; dbg_step <= 1'b1; bst <= B_IDLE;
+                    data_in <= rom_q; clkena <= 1'b1; dbg_step <= 1'b1; bst <= B_IDLE;
                 end
                 B_WAIT_GR: begin
                     if (gr_ack) gr_taken <= 1'b1;

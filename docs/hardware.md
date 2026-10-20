@@ -163,6 +163,14 @@ buffers; the cache.
 
 ### CPU (rtl/rabbit_main.sv)
 
-TG68K.C with `CPU = 11` (68020: 32-bit multiply / divide, bit fields, the extended addressing modes the game uses everywhere). Its bus is
-16 bits wide, so a long access is two word cycles. The kernel steps at most once every four clocks (the multicycle constraint), paced by
-a token bucket (`STEP_COST_*`, `STEP_GAIN`).
+TG68K.C with `CPU = 11` (68020: 32-bit multiply / divide, bit fields, the extended addressing modes the game uses everywhere; a trace
+of MAME shows `mulu.l`, `muls.l`, `divs.l`, `divu.l`, `extb.l`, `bfextu`, `bfins` executed). Its bus is 16 bits wide, so a long
+access is two word cycles. The kernel steps at most once every four clocks (the multicycle constraint); the program cache answers a hit
+in the clock after the step's request; and a token bucket paces the steps: a bus step costs 47/8 clocks, an internal one 40/8.
+
+The pacing is calibrated on the only stretch where the game's 68020 has no slack: the power-on RAM / ROM test (MAME frames 0 - 7). After
+it the game waits out a fixed 120-frame warning screen, so the frame in which the test ends fixes the game's whole timeline. MAME's ends
+76 % into frame 6 (the wait loop at 287c counts 6,629 of a full frame's 27,675 iterations there); with this pacing the core's ends 73 %
+into frame 6, and the work RAM is then byte for byte MAME's at the same frame numbers (`tools/cmp_ram.py`). Without the cache's fast
+answer the test ended a frame late and every later frame of the core was one behind MAME; at full speed it ended a frame early. Elsewhere
+the game waits for vblank in its idle loop at 101f2 about half of every frame in MAME (~17,000 iterations; the core ~28,800).

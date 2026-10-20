@@ -7,9 +7,9 @@
 `default_nettype none
 
 module rabbit_core #(
-    parameter int STEP_COST_BUS = 4,
-    parameter int STEP_COST_INT = 4,
-    parameter int STEP_GAIN     = 1
+    parameter int STEP_COST_BUS = 47,
+    parameter int STEP_COST_INT = 40,
+    parameter int STEP_GAIN     = 8
 ) (
     input  logic        clk,
     input  logic        reset,              // the machine

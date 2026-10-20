@@ -75,44 +75,109 @@ module rabbit_sprgen #(
     logic  [3:0] wq_wp, wq_rp;
     wire   [3:0] wq_n = wq_wp - wq_rp;
 
-    // ------------------------------------------------------------------ the decode of the sprite whose data is on spr_q
-    logic [13:0] dx, dy;
+    // ------------------------------------------------------------------ the scan
+    // A pipeline: the sprite's address goes out (v0), its two dwords are on spr_q (v1), then two registered decode stages (v2: the
+    // positions; v3: the rows and the hits), and a sprite that covers any of the line's rows goes into a small FIFO, from which its rows
+    // go into the draw queue one a clock. The issue pauses while the FIFO could not take what is in flight; the order is kept.
+    logic [11:0] s_cnt;                      // sprites still to issue (the next is s_cnt - 1)
+    logic        v0, v1, v2, v3;
+    logic [13:0] d1_dx, d1_dy;               // stage 2: from spr_q
+    logic [16:0] d1_tile;
+    logic        d1_flip, d1_yflip;
+    logic  [7:0] d1_colr;
+    logic  [2:0] d2_hit;                     // stage 3
+    logic  [3:0] d2_row [3];
+    logic [13:0] d2_dx;
+    logic [16:0] d2_tile;
+    logic        d2_flip;
+    logic  [7:0] d2_colr;
+    // the decode of stage 3 (from stage 2's registers)
     logic [13:0] row_k [3];
     logic  [2:0] hit;
     logic        vis;
     logic [11:0] dwin;
     always_comb begin
-        dx   = {{2{spr_q0[11]}}, spr_q0[11:0]} + 14'd24;
-        dy   = {2'b00, spr_q0[27:16]} - 14'd24;
-        dwin = dx[11:0] - startx;
+        dwin = d1_dx[11:0] - startx;
         // some of its 16 columns fall in the window (the bitmap's own edges are clipped at the landing)
         vis  = (dwin < 12'(ncols)) || (dwin >= 12'd4081);
         for (int k = 0; k < 3; k++) begin
-            row_k[k] = {2'b00, sl[k]} - dy;
+            row_k[k] = {2'b00, sl[k]} - d1_dy;
             hit[k]   = (2'(k) < nj) && (row_k[k][13:4] == 10'd0) && vis;
         end
     end
-
-    // ------------------------------------------------------------------ the scan
-    logic [11:0] s_cnt;                      // sprites still to issue (the next is s_cnt - 1)
-    logic  [1:0] pv;                         // pv[0]: an address was issued in the last clock; pv[1]: its data is on spr_q now
-    logic  [2:0] hpend;                      // rows of the held sprite still to enqueue
-    logic [16:0] h_tile;
-    logic [13:0] h_dx;
-    logic        h_flip;
-    logic  [7:0] h_colr;
-    logic  [3:0] h_row [3];
-    logic  [1:0] h_k;                        // the lowest pending row
-    always_comb h_k = hpend[0] ? 2'd0 : hpend[1] ? 2'd1 : 2'd2;
+    // the FIFO of sprites with hits
+    logic  [2:0] hf_hit  [8];
+    logic  [3:0] hf_row  [8][3];
+    logic [13:0] hf_dx   [8];
+    logic [16:0] hf_tile [8];
+    logic        hf_flip [8];
+    logic  [7:0] hf_colr [8];
+    logic  [3:0] hf_wp, hf_rp;
+    wire   [3:0] hf_n = hf_wp - hf_rp;
+    // the sprite whose rows are being queued
+    logic  [2:0] xp;
+    logic  [3:0] x_row [3];
+    logic [13:0] x_dx;
+    logic [16:0] x_tile;
+    logic        x_flip;
+    logic  [7:0] x_colr;
+    logic  [1:0] x_k;                        // its lowest row still to queue
+    always_comb x_k = xp[0] ? 2'd0 : xp[1] ? 2'd1 : 2'd2;
 
     logic  [2:0] ld_n;                       // fetches in flight (the landing side)
-    logic        hit_now;
-    assign hit_now = pv[1] && (hit != 3'b000);
+    wire         scanning = (st == S_SCAN);
 
     always_ff @(posedge clk) begin
         if (reset) begin
-            st <= S_IDLE; busy <= 1'b0; nj <= 2'd0; j_next <= '0; acc <= '0; pv <= 2'b00; wq_wp <= '0; hpend <= 3'b000; s_cnt <= '0;
+            st <= S_IDLE; busy <= 1'b0; nj <= 2'd0; j_next <= '0; acc <= '0; wq_wp <= '0; s_cnt <= '0;
+            v0 <= 1'b0; v1 <= 1'b0; v2 <= 1'b0; v3 <= 1'b0; hf_wp <= '0; hf_rp <= '0; xp <= 3'b000;
         end else begin
+            // ---------------------------------------------------- the scan pipeline (runs in S_SCAN)
+            v0 <= 1'b0;
+            v1 <= v0; v2 <= v1; v3 <= v2;
+            if (scanning && s_cnt != 12'd0 && hf_n < 4'd4) begin
+                spr_addr <= 11'(s_cnt - 12'd1);
+                s_cnt <= s_cnt - 12'd1;
+                v0 <= 1'b1;
+            end
+            if (v1) begin
+                d1_dx    <= {{2{spr_q0[11]}}, spr_q0[11:0]} + 14'd24;
+                d1_dy    <= {2'b00, spr_q0[27:16]} - 14'd24;
+                d1_tile  <= spr_q1[16:0];
+                d1_flip  <= ~spr_q0[15];
+                d1_yflip <= spr_q0[14];
+                d1_colr  <= spr_q1[27:20];
+            end
+            if (v2) begin
+                d2_hit <= hit;
+                for (int k = 0; k < 3; k++) d2_row[k] <= d1_yflip ? ~row_k[k][3:0] : row_k[k][3:0];
+                d2_dx <= d1_dx; d2_tile <= d1_tile; d2_flip <= d1_flip; d2_colr <= d1_colr;
+            end
+            if (v3 && d2_hit != 3'b000) begin
+                hf_hit[hf_wp[2:0]] <= d2_hit;
+                for (int k = 0; k < 3; k++) hf_row[hf_wp[2:0]][k] <= d2_row[k];
+                hf_dx[hf_wp[2:0]] <= d2_dx; hf_tile[hf_wp[2:0]] <= d2_tile; hf_flip[hf_wp[2:0]] <= d2_flip; hf_colr[hf_wp[2:0]] <= d2_colr;
+                hf_wp <= hf_wp + 4'd1;
+            end
+            // ---------------------------------------------------- the rows of the FIFO's sprites into the draw queue, one a clock
+            if (xp == 3'b000) begin
+                if (hf_n != 4'd0) begin
+                    xp <= hf_hit[hf_rp[2:0]];
+                    for (int k = 0; k < 3; k++) x_row[k] <= hf_row[hf_rp[2:0]][k];
+                    x_dx <= hf_dx[hf_rp[2:0]]; x_tile <= hf_tile[hf_rp[2:0]]; x_flip <= hf_flip[hf_rp[2:0]]; x_colr <= hf_colr[hf_rp[2:0]];
+                    hf_rp <= hf_rp + 4'd1;
+                end
+            end else if (wq_n < 4'd8) begin
+                wq_k[wq_wp[2:0]]    <= x_k;
+                wq_tile[wq_wp[2:0]] <= x_tile;
+                wq_r[wq_wp[2:0]]    <= x_row[x_k];
+                wq_dx[wq_wp[2:0]]   <= x_dx;
+                wq_flip[wq_wp[2:0]] <= x_flip;
+                wq_colr[wq_wp[2:0]] <= x_colr;
+                wq_wp <= wq_wp + 4'd1;
+                xp[x_k] <= 1'b0;
+            end
+
             case (st)
                 S_IDLE: if (start) begin
                     busy <= 1'b1; ln <= line; par <= line[0]; nj <= 2'd0;
@@ -135,43 +200,13 @@ module rabbit_sprgen #(
                         e_clr <= 8'd0;
                         if (k_clr == nj - 2'd1) begin
                             s_cnt <= (todraw > 12'd2048) ? 12'd2048 : todraw;
-                            pv <= 2'b00; hpend <= 3'b000;
                             st <= S_SCAN;
                         end else k_clr <= k_clr + 2'd1;
                     end else e_clr <= e_clr + 8'd1;
                 end
                 S_SCAN: begin
-                    if (hpend != 3'b000) begin
-                        // the held sprite's rows go into the draw queue, one a clock
-                        pv <= 2'b00;
-                        if (wq_n < 4'd8) begin
-                            wq_k[wq_wp[2:0]]    <= h_k;
-                            wq_tile[wq_wp[2:0]] <= h_tile;
-                            wq_r[wq_wp[2:0]]    <= h_row[h_k];
-                            wq_dx[wq_wp[2:0]]   <= h_dx;
-                            wq_flip[wq_wp[2:0]] <= h_flip;
-                            wq_colr[wq_wp[2:0]] <= h_colr;
-                            wq_wp <= wq_wp + 4'd1;
-                            hpend[h_k] <= 1'b0;
-                        end
-                    end else if (hit_now) begin
-                        // hold it; the sprite whose address went out behind it is issued again afterwards
-                        hpend  <= hit;
-                        h_tile <= spr_q1[16:0];
-                        h_dx   <= dx;
-                        h_flip <= ~spr_q0[15];
-                        h_colr <= spr_q1[27:20];
-                        for (int k = 0; k < 3; k++) h_row[k] <= spr_q0[14] ? ~row_k[k][3:0] : row_k[k][3:0];
-                        if (pv[0]) s_cnt <= s_cnt + 12'd1;
-                        pv <= 2'b00;
-                    end else if (s_cnt != 12'd0) begin
-                        spr_addr <= 11'(s_cnt - 12'd1);
-                        s_cnt <= s_cnt - 12'd1;
-                        pv <= {pv[0], 1'b1};
-                    end else begin
-                        pv <= {pv[0], 1'b0};
-                        if (pv == 2'b00) st <= S_DRAIN;
-                    end
+                    // everything issued has gone through the pipeline and the FIFO
+                    if (s_cnt == 12'd0 && !v0 && !v1 && !v2 && !v3 && hf_n == 4'd0 && xp == 3'b000) st <= S_DRAIN;
                 end
                 S_DRAIN: begin
                     if (wq_n == 4'd0 && !req && ld_n == 3'd0) begin busy <= 1'b0; st <= S_IDLE; end

@@ -2,9 +2,9 @@
 // The 68020's program ROM cache: direct mapped, 8-word (16-byte) lines in block RAM, filled from the SDRAM by an 8-word burst
 // (rabbit_sdram's client protocol). After the Mystic Warriors core's rom_cache.sv (the owner's, proven on the MiSTer).
 //
-// The CPU side is a level request with a one-clock ack carrying the word. A hit costs two clocks (the tag and the word are read in the clock
-// the request is seen, compared in the next). `reset` drops every line (a new image is loading); a sweep then clears the tags and `ready`
-// rises when it is done. The ack only goes to a request still standing with the same address.
+// The CPU side: `req` is a one-clock pulse with the address (the CPU's step); the tag and the word are read in that clock and compared
+// in the next, where a hit raises `ack` (combinationally) with the word on `q`. A miss fills the line and answers when it is there.
+// `reset` drops every line (a new image is loading); a sweep then clears the tags and `ready` rises when it is done.
 //------------------------------------------------------------------------------
 `default_nettype none
 
@@ -72,9 +72,10 @@ module rabbit_cache #(
     end
 
     wire hit = tag_q[TAGW] && (tag_q[TAGW-1:0] == addr_l[AW-1:IDX+3]);
+    assign ack = (st == C_CMP) && hit;
+    assign q   = dat_q;
 
     always_ff @(posedge clk) begin
-        ack <= 1'b0;
         if (m_ack) m_req <= 1'b0;
         if (reset) begin
             st <= C_SWEEP; sweep_i <= '0; ready <= 1'b0; m_req <= 1'b0; fill_go <= 1'b0;
@@ -83,14 +84,11 @@ module rabbit_cache #(
                 sweep_i <= sweep_i + 1'b1;
                 if (sweep_i == {IDX{1'b1}}) begin st <= C_IDLE; ready <= 1'b1; end
             end
-            C_IDLE: if (req && !ack) begin addr_l <= addr; st <= C_CMP; end
+            C_IDLE: if (req) begin addr_l <= addr; st <= C_CMP; end
             C_RD:   st <= C_CMP;
             C_CMP: begin
-                if (hit) begin
-                    q <= dat_q;
-                    if (req && addr == addr_l) ack <= 1'b1;
-                    st <= C_IDLE;
-                end else begin
+                if (hit) st <= C_IDLE;
+                else begin
                     m_req <= 1'b1; m_addr <= BASE + 24'({addr_l[AW-1:3], 3'b000}); m_len <= 5'd8;
                     fill_i <= '0; fill_go <= 1'b0;
                     st <= C_FILL;

@@ -30,6 +30,9 @@ set_multicycle_path -setup 4 -from [get_registers {*|TG68KdotC_Kernel:*|*}] -to 
 set_multicycle_path -hold  3 -from [get_registers {*|TG68KdotC_Kernel:*|*}] -to [get_registers {*|TG68KdotC_Kernel:*|*}]
 set_multicycle_path -setup 3 -from [get_keepers {*|TG68KdotC_Kernel:*|*}] -to [get_keepers {*|rabbit_main:*|*}]
 set_multicycle_path -hold  2 -from [get_keepers {*|TG68KdotC_Kernel:*|*}] -to [get_keepers {*|rabbit_main:*|*}]
+# the program cache's lookup starts in the step's clock from the kernel's address, which has been steady for three clocks by then
+set_multicycle_path -setup 3 -from [get_keepers {*|TG68KdotC_Kernel:*|*}] -to [get_keepers {*|rabbit_cache:*|*}]
+set_multicycle_path -hold  2 -from [get_keepers {*|TG68KdotC_Kernel:*|*}] -to [get_keepers {*|rabbit_cache:*|*}]
 
 # ==============================================================================
 # The framework's HQ2x (sys/hq2x.sv) updates its datapath on the scandoubler's ce_x4i, four times per input pixel: for this core's

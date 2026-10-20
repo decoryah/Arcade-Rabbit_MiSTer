@@ -13,7 +13,7 @@ if [ ! -x $OBJ/Vtb_top ] || [ -n "$REBUILD" ]; then
 verilator --cc --exe --build -j ${JOBS:-16} -O3 ${THREADS:+--threads $THREADS} -CFLAGS "-O2 -march=native" -Wno-fatal -Wno-WIDTH -Wno-DECLFILENAME \
     -Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-PINCONNECTEMPTY -Wno-IMPLICIT -Wno-TIMESCALEMOD -Wno-CASEINCOMPLETE \
     -Wno-MULTIDRIVEN -Wno-LATCH -Wno-UNSIGNED -Wno-CMPCONST -Wno-PROCASSINIT -Wno-SYNCASYNCNET -Wno-BLKSEQ \
-    +1364-2005ext+v waivers.vlt -I../rtl --top-module tb_top --prefix Vtb_top -Mdir $OBJ \
+    +1364-2005ext+v waivers.vlt $VFLAGS -I../rtl --top-module tb_top --prefix Vtb_top -Mdir $OBJ \
     ../rtl/rabbit_core.sv ../rtl/rabbit_main.sv ../rtl/rabbit_cache.sv ../rtl/rabbit_video.sv ../rtl/rabbit_tilegen.sv \
     ../rtl/rabbit_sprgen.sv ../rtl/rabbit_ram.sv ../rtl/rabbit_blitter.sv ../rtl/rabbit_i5000.sv ../rtl/rabbit_eeprom.sv ../rtl/rabbit_sdram.sv \
     ../modules/cpu-tg68k/gen/tg68k.v sdram_model.sv tb_top.sv tb_rabbit.cpp > $OBJ.log 2>&1 || { tail -30 $OBJ.log; exit 1; }

@@ -80,6 +80,7 @@ int main(int argc, char **argv) {
     if (audio) wav = fopen((prefix + ".raw").c_str(), "wb");
     int acnt = 0;
     uint64_t idle_reads = 0, blt_run = 0, blt_max = 0;
+    uint32_t idle_addr = getenv("IDLEADDR") ? strtoul(getenv("IDLEADDR"), nullptr, 16) : 0xff53c6;   // the wait loop counted (101f2: ff53c6; the boot's 287c: ffff5a)
     int nirq = 0, late_irq = 0;
     FILE *idlef = getenv("IDLE") ? fopen(getenv("IDLE"), "w") : nullptr;
 
@@ -90,7 +91,7 @@ int main(int argc, char **argv) {
         t->clk = 1; t->eval();
         t->clk = 0; t->eval();
         cyc++;
-        if (t->dbg_rd && t->dbg_rd_addr == 0xff53c6) idle_reads++;
+        if (t->dbg_rd && t->dbg_rd_addr == idle_addr) idle_reads++;
         if (t->dbg_blt_busy) { blt_run++; if (blt_run > blt_max) blt_max = blt_run; } else blt_run = 0;
         if (t->dbg_blt_irq) { nirq++; if (t->dbg_blt_busy) late_irq++; }     // the idle loop's flag (tst.b at 101f2): the CPU's slack
 

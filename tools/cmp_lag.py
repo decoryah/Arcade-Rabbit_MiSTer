@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """cmp_lag.py <bench prefix> <MAME dir> <frames...> [--window N]: for each of the bench's pictures <prefix>.f<frame>.ppm, the MAME snapshot
-(<dir>/snap_<g>.png, g within frame +- N) it equals or comes closest to: the core's timeline lag behind MAME's (positive = the core shows
-what MAME showed earlier)."""
+(<dir>/snap_<g>.png, g within frame +- N) it equals or comes closest to, and the core's lag behind MAME's timeline.
+
+The bench writes the picture of frame f when vblank f begins: the picture the raster has just shown, which the core drew from its
+snapshot of vblank f - 1. MAME's snapshot g is drawn at vblank g. So a core in step with MAME (the same state at the same vblank, as
+tools/cmp_ram.py checks) shows MAME's g = f - 1: lag 0. A positive lag = the core is behind."""
 import sys, os, argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pngio
@@ -38,8 +41,8 @@ for f in a.frames:
         s = snap(g)
         if s is None: continue
         n = diff(ours, s) if s != ours else 0
-        if best is None or n < best[1] or (n == best[1] and abs(g - f) < abs(best[0] - f)):
+        if best is None or n < best[1] or (n == best[1] and abs(g - f + 1) < abs(best[0] - f + 1)):
             best = (g, n)
-        if n == 0 and g == f: break
+        if n == 0 and g == f - 1: break
     if best:
-        print(f'frame {f}: MAME frame {best[0]} ({best[1]} pixels differ), lag {f - best[0]:+d}')
+        print(f'frame {f}: MAME frame {best[0]} ({best[1]} pixels differ), lag {f - 1 - best[0]:+d}')
