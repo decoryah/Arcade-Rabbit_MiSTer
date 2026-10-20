@@ -125,6 +125,7 @@ module rabbit_sprgen #(
     always_comb x_k = xp[0] ? 2'd0 : xp[1] ? 2'd1 : 2'd2;
 
     logic  [2:0] ld_n;                       // fetches in flight (the landing side)
+    logic        p_v;                        // a word's pixels between the landing's two stages
     wire         scanning = (st == S_SCAN);
 
     always_ff @(posedge clk) begin
@@ -209,7 +210,7 @@ module rabbit_sprgen #(
                     if (s_cnt == 12'd0 && !v0 && !v1 && !v2 && !v3 && hf_n == 4'd0 && xp == 3'b000) st <= S_DRAIN;
                 end
                 S_DRAIN: begin
-                    if (wq_n == 4'd0 && !req && ld_n == 3'd0) begin busy <= 1'b0; st <= S_IDLE; end
+                    if (wq_n == 4'd0 && !req && ld_n == 3'd0 && !p_v) begin busy <= 1'b0; st <= S_IDLE; end
                 end
                 default: st <= S_IDLE;
             endcase
@@ -249,55 +250,69 @@ module rabbit_sprgen #(
     end
 
     // ------------------------------------------------------------------ the landing
+    // Two stages (timing): the first works out where each of a word's four pixels lands in the window and whether it is drawn, the
+    // second routes them to the lanes (consecutive pixels land in different lanes; among equals the later pixel would win, as MAME's
+    // forward drawing order).
     logic  [1:0] wi;
     wire   [1:0] lr = lq_rp[1:0];
+
+    logic  [3:0] p_ok;
+    logic  [1:0] p_lane [4];
+    logic [10:0] p_addr [4];
+    logic [11:0] p_d    [4];
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            lq_rp <= '0; wi <= '0; p_v <= 1'b0;
+        end else begin
+            p_v <= valid && st != S_CLR;
+            if (valid && st != S_CLR) begin
+                for (int m = 0; m < 4; m++) begin : px
+                    logic [3:0]  i;          // pixel of the sprite row
+                    logic [3:0]  pen;
+                    logic [13:0] col;
+                    logic [11:0] ib;
+                    case (wi)
+                        2'd0:    i = 4'd8  + 4'(m);
+                        2'd1:    i = 4'd12 + 4'(m);
+                        2'd2:    i = 4'd0  + 4'(m);
+                        default: i = 4'd4  + 4'(m);
+                    endcase
+                    case (m)
+                        0:       pen = data[7:4];
+                        1:       pen = data[3:0];
+                        2:       pen = data[15:12];
+                        default: pen = data[11:8];
+                    endcase
+                    col = lq_dx[lr] + 14'(lq_flip[lr] ? 4'd15 - i : i);
+                    ib  = col[11:0] - startx;
+                    p_ok[m]   <= pen != 4'hf && col[13:12] == 2'b00 && ib < 12'(ncols);
+                    p_lane[m] <= ib[1:0];
+                    p_addr[m] <= {par, lq_k[lr], ib[9:2]};
+                    p_d[m]    <= {lq_colr[lr], pen};
+                end
+                wi <= wi + 2'd1;
+                if (wi == 2'd3) lq_rp <= lq_rp + 3'd1;
+            end
+        end
+    end
 
     logic  [3:0] l_we;
     logic [10:0] l_addr [4];
     logic [11:0] l_d    [4];
     always_comb begin
         for (int i = 0; i < 4; i++) begin l_we[i] = 1'b0; l_addr[i] = '0; l_d[i] = '0; end
-        for (int m = 0; m < 4; m++) begin : px
-            logic [3:0]  i;                  // pixel of the sprite row
-            logic [3:0]  pen;
-            logic [13:0] col;
-            logic [11:0] ib;
-            case (wi)
-                2'd0:    i = 4'd8  + 4'(m);
-                2'd1:    i = 4'd12 + 4'(m);
-                2'd2:    i = 4'd0  + 4'(m);
-                default: i = 4'd4  + 4'(m);
-            endcase
-            case (m)
-                0:       pen = data[7:4];
-                1:       pen = data[3:0];
-                2:       pen = data[15:12];
-                default: pen = data[11:8];
-            endcase
-            col = lq_dx[lr] + 14'(lq_flip[lr] ? 4'd15 - i : i);
-            ib  = col[11:0] - startx;
-            if (pen != 4'hf && col[13:12] == 2'b00 && ib < 12'(ncols)) begin
-                l_we[ib[1:0]]   = 1'b1;
-                l_addr[ib[1:0]] = {par, lq_k[lr], ib[9:2]};
-                l_d[ib[1:0]]    = {lq_colr[lr], pen};
-            end
-        end
+        for (int m = 0; m < 4; m++)
+            if (p_ok[m]) begin l_we[p_lane[m]] = 1'b1; l_addr[p_lane[m]] = p_addr[m]; l_d[p_lane[m]] = p_d[m]; end
     end
 
     always_ff @(posedge clk) begin
         sp_we <= 4'b0000;
-        if (reset) begin
-            lq_rp <= '0; wi <= '0;
-        end else begin
-            if (st == S_CLR) begin
-                sp_we <= 4'b1111;
-                for (int i = 0; i < 4; i++) begin sp_addr[i] <= {par, k_clr, e_clr}; sp_d[i] <= 12'd0; end
-            end else if (valid) begin
-                sp_we <= l_we;
-                for (int i = 0; i < 4; i++) begin sp_addr[i] <= l_addr[i]; sp_d[i] <= l_d[i]; end
-                wi <= wi + 2'd1;
-                if (wi == 2'd3) lq_rp <= lq_rp + 3'd1;
-            end
+        if (st == S_CLR) begin
+            sp_we <= 4'b1111;
+            for (int i = 0; i < 4; i++) begin sp_addr[i] <= {par, k_clr, e_clr}; sp_d[i] <= 12'd0; end
+        end else if (p_v && !reset) begin
+            sp_we <= l_we;
+            for (int i = 0; i < 4; i++) begin sp_addr[i] <= l_addr[i]; sp_d[i] <= l_d[i]; end
         end
     end
 endmodule
