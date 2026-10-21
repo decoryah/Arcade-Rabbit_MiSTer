@@ -158,6 +158,26 @@ register log of the same attract mode):
   data at 1-8 fs, with no digital filter, so the chip's output is 16-bit stereo and all smoothing is analog. The board low-passes it,
   roughly two poles at about 3 kHz (the recording against the decoded data: flat to 2.5 kHz, -8 dB at 3.2 kHz, -12 dB at 4 kHz), with a
   bass cut below about 200 Hz (possibly the recording's), into a Toshiba power amplifier for the JAMMA speaker.
+* **The core's two sound modes** (OSD Sound). **MAME**: MAME's device exactly (`rtl/rabbit_i5000.sv` with `enhanced` 0: the fixed
+  39,062.5 Hz, register 0x46 ignored). **Enhanced** (the default): the rate from register 0x46, then two stages fitted against the
+  board recording above (the attract mode from its start, 95 s, against the same stretch rendered from MAME's register log at the
+  board's pitch and tempo). What separates MAME's decoding from the board, measured: (1) below 150 Hz the decoder's wander, up to
+  +42 dB at 40 Hz in the bass part (the board has almost nothing below 100 Hz); (2) 2-3 dB too much at 3-6 kHz, too little at
+  8-10 kHz; (3) the gaps between notes: within each second the board's loudness ranges over 5.7 dB and its gaps reach 7.6 dB below
+  the notes, MAME's decoding 4.6 and 6.7 dB, and in the intro's bass part the board's gaps are 10 dB deeper (its notes die away,
+  MAME's decoding leaves them as noise). A mix-wide expander cannot make those gaps (MAME's level barely dips between the notes);
+  lifting the decoder's 12-bit limit makes things worse (the limit is what holds the wander in); a slow leveller evens the long-term
+  level (the recording is more even than MAME's) but fills the intro's quiet parts again. So: (a) a per-note tail expander on the
+  music channels 0-11 (the sound driver keeps music there and effects and voices on 12-15; in the attract and play logs the two
+  sets never share a sample): each code's signal less the note's slow mean is scaled by (its peak follower / the note's peak since
+  the key on)^4, worked in log2 (`tools/txref.py`); (b) an EQ at the chip's rate: three 2-pole high-passes at 175 Hz, peaks of
+  +3.0 dB at 220 Hz, +0.8 dB at 2 kHz, -3.5 dB at 4.6 kHz and +3.8 dB at 8.5 kHz, a 2-pole low-pass at 12.5 kHz, and +1.5 dB of
+  make-up gain, so that Enhanced plays as loud as MAME's sound (EBU R128; peaks still 7 dB under full scale) (`rtl/rabbit_sndflt.sv`,
+  `tools/sndflt_ref.py`). Result against the board: the long-term spectrum within 1 dB from 50 Hz to 10 kHz (+1.5 dB at 12.9 kHz;
+  above that the recording's codec), within-second range 5.4 dB and gaps 7.5 dB (the board 5.7, 7.6); on the intro the quiet parts
+  -14.3 dB re the loud (the board -16.7, MAME's decoding -10.8). The bass part of the intro stays 5-7 dB quieter, relative to the
+  rest, than on the board, and the loudness envelopes correlate with the board's as MAME's did (0.62-0.75 by band): both are the
+  decoding's, which no filter after it can reach.
 * **The frame rate**. The recording's attract mode runs 4.1 % slower than MAME's 60 Hz (the attract loop: 69.5 s against 67 s), so the
   board's vblank is about 57.6 Hz (57.64 +- 0.1); MAME's screen for this driver is a placeholder. The board has two oscillators, 40 MHz
   next to the I5000 and 24 MHz for the 68020, so its raster comes from 40 MHz: any 15 kHz layout of 263 lines that fits (40 MHz / 6 x

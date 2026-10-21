@@ -13,6 +13,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_tilegen.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_sprgen.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_blitter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_i5000.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_sndflt.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/rabbit_eeprom.sv
 
 # the MiSTer platform layer

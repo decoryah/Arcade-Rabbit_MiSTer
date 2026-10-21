@@ -15,6 +15,7 @@ module rabbit_core #(
     input  logic        reset,              // the machine
     input  logic        cache_flush,        // a new image is loading
     input  logic        board_rate,         // the raster: 1 = the board's 57.61 Hz, 0 = MAME's 60 Hz (rabbit_video)
+    input  logic        snd_enh,            // the sound: 1 = Enhanced (the game's sample rate, the output filter), 0 = MAME's (rabbit_i5000)
 
     // the SDRAM's read clients
     output logic        m_req   [6],
@@ -130,7 +131,7 @@ module rabbit_core #(
 
     // ------------------------------------------------------------------ the sound
     rabbit_i5000 u_snd (
-        .clk(clk), .reset(reset),
+        .clk(clk), .reset(reset), .enhanced(snd_enh),
         .wr(snd_wr), .rreg(snd_reg), .wdata(snd_wdata), .rdata(snd_rdata),
         .req(m_req[0]), .addr(m_addr[0]), .len(m_len[0]), .ack(m_ack[0]), .valid(m_valid[0]), .data(m_rdata),
         .out_l(audio_l), .out_r(audio_r)

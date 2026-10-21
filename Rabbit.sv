@@ -67,6 +67,7 @@ localparam CONF_STR = {
 	"H1P1O[47:41],CRT H-Position,0,+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,+11,+12,+13,+14,+15,+16,-48,-47,-46,-45,-44,-43,-42,-41,-40,-39,-38,-37,-36,-35,-34,-33,-32,-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
 	"H1P1O[52:48],CRT V-Shift,0,+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,+11,+12,+13,+14,+15,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
 	"-;",
+	"O[11],Sound,Enhanced,MAME;",
 	"O[9:8],Volume,Normal,-6 dB,-12 dB,+6 dB;",
 	"O[10],Swap stereo,No,Yes;",
 	"O[14],Refresh rate,57.6 Hz (board),60 Hz (MAME);",
@@ -282,10 +283,11 @@ wire signed [15:0] snd_l, snd_r;
 wire        frame_tick;
 
 wire        board_rate = ~status[14];       // the board's 57.61 Hz (default) or MAME's 60 Hz
+wire        snd_enh    = ~status[11];       // the Enhanced sound (default: the board's pitch, the output filter) or MAME's exactly
 
 rabbit_core u_core
 (
-	.clk(clk_sys), .reset(mc_rst), .cache_flush(c_flush), .board_rate(board_rate),
+	.clk(clk_sys), .reset(mc_rst), .cache_flush(c_flush), .board_rate(board_rate), .snd_enh(snd_enh),
 	.m_req(m_req), .m_addr(m_addr), .m_len(m_len), .m_ack(m_ack), .m_valid(m_valid), .m_rdata(m_rdata),
 	.in_port(in_port),
 	.ee_ld_wr(ee_ld_wr && !nv_loaded && !nv_wr), .ee_ld_addr(ee_ld_addr), .ee_ld_data(ee_ld_data),

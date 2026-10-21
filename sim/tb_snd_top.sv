@@ -4,14 +4,32 @@
 module tb_snd_top (
     input  logic        clk,
     input  logic        reset_in,
+    input  logic        enhanced,           // OSD Sound: 1 Enhanced, 0 MAME
     input  logic        wr,
     input  logic  [6:0] rreg,
     input  logic [15:0] wdata,
     output logic signed [15:0] out_l,
     output logic signed [15:0] out_r,
     output logic [15:0] rdata,
-    output logic        ready
+    output logic        ready,
+    // the output filter's input and output at each chip sample (the filter's result for the sample before), for tools/sndflt_ref.py
+    output logic        dbg_stb,
+    output logic signed [16:0] dbg_mx_l,
+    output logic signed [16:0] dbg_mx_r,
+    output logic signed [15:0] dbg_f_l,
+    output logic signed [15:0] dbg_f_r,
+    // the tail expander's key ons and codes (tools/txref.py)
+    output logic        dbg_kon,
+    output logic        dbg_tx,
+    output logic  [3:0] dbg_ch,
+    output logic signed [13:0] dbg_tx_in,
+    output logic signed [13:0] dbg_tx_out
 );
+    assign dbg_kon = u_snd.dbg_kon_stb; assign dbg_tx = u_snd.dbg_tx_stb; assign dbg_ch = u_snd.dbg_ch;
+    assign dbg_tx_in = u_snd.dbg_tx_in; assign dbg_tx_out = u_snd.dbg_tx_out;
+    assign dbg_stb = u_snd.mx_stb;
+    assign dbg_mx_l = u_snd.mx_l; assign dbg_mx_r = u_snd.mx_r;
+    assign dbg_f_l = u_snd.flt_l; assign dbg_f_r = u_snd.flt_r;
     logic        m_req [1], m_ack [1], m_valid [1];
     logic [23:0] m_addr [1];
     logic  [4:0] m_len [1];
@@ -33,7 +51,7 @@ module tb_snd_top (
         .nCS(SDRAM_nCS), .nRAS(SDRAM_nRAS), .nCAS(SDRAM_nCAS), .nWE(SDRAM_nWE), .CKE(SDRAM_CKE)
     );
     rabbit_i5000 u_snd (
-        .clk(clk), .reset(reset_in || !ready),
+        .clk(clk), .reset(reset_in || !ready), .enhanced(enhanced),
         .wr(wr), .rreg(rreg), .wdata(wdata), .rdata(rdata),
         .req(m_req[0]), .addr(m_addr[0]), .len(m_len[0]), .ack(m_ack[0]), .valid(m_valid[0]), .data(m_rdata),
         .out_l(out_l), .out_r(out_r)

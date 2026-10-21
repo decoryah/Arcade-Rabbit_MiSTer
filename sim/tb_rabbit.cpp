@@ -70,6 +70,7 @@ int main(int argc, char **argv) {
     Vtb_top *t = new Vtb_top;
     t->clk = 0; t->reset_in = 1; t->in_port = 0xffffffff;
     t->board_rate = getenv("BOARD") && atoi(getenv("BOARD"));    // BOARD=1: the board's 57.61 Hz raster (default: MAME's 60 Hz)
+    t->snd_enh = getenv("ENH") && atoi(getenv("ENH"));           // ENH=1: the Enhanced sound (default: MAME's)
     t->eval();
 
     std::vector<uint8_t> fb(320 * 224 * 3, 0);
