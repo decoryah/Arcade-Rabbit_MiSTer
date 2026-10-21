@@ -4,17 +4,20 @@ Aorn / Electronic Arts' **Rabbit** (1997), the one-on-one fighting game on the V
 I5000), with four MRAs: Asia 3-6 (the parent), Asia 1-28, Japan 3-6 and Japan 1-28 (location test).
 
 **The 20261020 release was tested on a real MiSTer by the repository owner: the game and all four versions work, and so do
-CRT Adjust, the button names and the scandoubler modes.** This one adds a sound option and has not been on a MiSTer yet;
-it was checked in simulation against MAME 0.289, frame for frame (below).
+CRT Adjust, the button names and the scandoubler modes.** This build replaces the first 20261021 build (the one with the
+fitted "Enhanced" sound) and has not been on a MiSTer yet; it was checked in simulation against MAME 0.289 (below).
 
-New: the OSD option **Sound: Enhanced / MAME**.
-- **MAME** is MAME's sound exactly: its 39,062.5 Hz (every sound 23 % slow, 3.5 semitones flat), its decoding, nothing
-  else. With "Refresh rate: 60 Hz (MAME)" too, the game also plays at MAME's tempo.
-- **Enhanced** (the default) is the board's pitch (the rate the game sets, 47,962 Hz) with two stages fitted against a
-  recording of a real board. Each music note's tail fades faster: the board's notes die away, and MAME's decoding leaves
-  noise between them, which flattened the dynamics. An EQ removes the decoder's rumble below 150 Hz (up to 42 dB above
-  the board's) and evens the tone. Its spectrum is within 1 dB of the board recording's from 50 Hz to 10 kHz, its
-  short-term dynamics are the board's, and it plays as loud as MAME's sound.
+New:
+- **The fighters no longer vanish in a KO's slow motion** (MAME Testers 04883, "Missing sprites during KO", open in MAME
+  since 0.146). The game ends its sprite list with a count of 0 on every other frame there; MAME then draws no sprites. The
+  game's own data shows the chip draws its sprites one frame late, and the core now shows the frame before's sprites on such a
+  frame, which gives the fighters on every normal frame of the slow motion between the game's flash frames. Every other frame
+  is unchanged (MAME's to the pixel).
+- The OSD option **Sound: Enhanced / MAME**. **MAME** is MAME's sound exactly: its 39,062.5 Hz (every sound 23 % slow, 3.5
+  semitones flat), its decoding, nothing else; with "Refresh rate: 60 Hz (MAME)" too, the game also plays at MAME's tempo.
+  **Enhanced** (the default) is the board's pitch (the rate the game sets, 47,962 Hz) and a filter that cuts the decoder's
+  rumble below 150 Hz (up to 42 dB above a real board's recording) and the hiss above 11 kHz: the "D2" version, chosen by
+  ear over a fitted version with a per-note expander and an eight-band EQ (the first 20261021 build).
 
 The decoding itself is still MAME's, which is not the board's: see "Known differences". Since 20261020: CRT Adjust (OSD
 page "CRT Adjust"), the buttons named as the game uses them (Light Punch, Heavy Punch, Light Kick, Heavy Kick), every
@@ -42,13 +45,16 @@ The OSD's version line reads `v261021`.
 - **The video chip against MAME 0.289** (`sim/run_frames.sh`, MAME's video state dumped by a Lua probe and rendered by the
   core's video pipeline with the real SDRAM path): **584 of 584 frames pixel-identical** to MAME's snapshots (240 of the
   attract mode to frame 6,000, 344 of scripted play to frame 9,000 with coin, start, the character select, fights with
-  special moves and summoned beasts; 29 of them zoomed, down to MAME's full zoom-out). No line ran out of time.
+  special moves and summoned beasts; 29 of them zoomed, down to MAME's full zoom-out). No line ran out of time. The KO
+  fix on consecutive frames (`SEQ=1`), two knockouts (the computer's 17-hit beast combo, the player's last hit), every frame
+  of their slow motion: each frame with sprites MAME's to the pixel, each count-0 frame the frame before's sprites over its
+  own picture.
 - **The sound chip** (`sim/run_snd.sh`, the game's register writes replayed). Sound: MAME, over 100 s of the attract mode
   against MAME's own `-wavwrite` recording: loudness envelopes correlate 0.9999 on both channels, level within 0.7 %, and all
   9,145 reads of the channel status answer what MAME answered. Sound: Enhanced: the chip at the game's rate against
-  `tools/i5000_ref.py` (MAME's device in Python at that rate): 0.9999, level within 0.2 %; the tail expander and the EQ bit
-  for bit against their integer models (`tools/txref.py`, `tools/sndflt_ref.py`; 3.8 million codes, 1.4 million samples a
-  side, no difference). The rate is the one a recording of a real board plays its samples at (to 0.05 %).
+  `tools/i5000_ref.py` (MAME's device in Python at that rate): 0.9999, level within 0.2 %; the filter bit for bit against its
+  integer model (`tools/sndflt_ref.py`; 1.4 million samples a side, no difference). The rate is the one a recording of a real
+  board plays its samples at (to 0.05 %).
 - **The whole machine** (`sim/run_sys.sh`: the 68020 running the game's program, blitter, sound and video behind the SDRAM
   controller and a behavioural SDRAM that checks its timing): it boots, reads its EEPROM and runs on MAME's timeline frame
   for frame: the work RAM at vblank is byte for byte MAME's at the same frame (the attract mode at 130-800, scripted play
@@ -64,8 +70,8 @@ The OSD's version line reads `v261021`.
   `forced_scandoubler` at both refresh rates give 448 rows in 524 lines with every frame whole and the same pictures; CRT Adjust
   sizes and moves the picture exactly as set (H-Size +2 / -16, H-Position +16 / -48, V-Shift +5 / -16) with no frame of the wrong
   length and no pixel lost; Scale asks the HDMI scaler for the sizes the framework's rule gives.
-- **Quartus 17.0.2:** 48 % of the ALMs (20,288), 446 of 553 M10K, 45 DSPs; every clock's slack positive (the 96 MHz
-  machine clock +0.243 ns setup, +0.135 ns hold; the framework's HDMI scaler +0.348 ns setup, +0.167 ns hold; fitter seed 2).
+- **Quartus 17.0.2:** 47 % of the ALMs (19,556), 446 of 553 M10K, 44 DSPs; every clock's slack positive (the 96 MHz
+  machine clock +0.295 ns setup, +0.252 ns hold; the framework's HDMI scaler +0.234 ns setup, +0.252 ns hold; fitter seed 4).
   `releases/rabbit_20261021.fit.summary` / `.sta.summary`.
 
 ### Controls
@@ -86,9 +92,9 @@ the picture. See the README.
 
 - **The sound's decoding is still MAME's.** The samples are decoded with MAME's OKI ADPCM, which their data does not fit (the
   signal sits at its limit 43 % of the time: the harsh, crunchy sound). The board's real decoding is unknown (MAME flags the
-  game's sound as imperfect). Sound: Enhanced approximates the board's sound on top of MAME's decoding, fitted against a
-  recording of a real board; `docs/hardware.md` "Sound" has the measurements, and what no filter can reach (the bass part of
-  the intro stays quieter than on the board). A clean recording of single sounds from a board would settle the decoding.
+  game's sound as imperfect). Sound: Enhanced only filters MAME's decoding; `docs/hardware.md` "Sound" has what a recording
+  of a real board shows. A clean recording of single sounds from a board would settle the decoding.
+- The KO fix follows the game's data, not a recording of a real board's KO (none at hand).
 - The board's frame rate is measured, not documented: a recording of a real board runs the attract mode 4.1 % slower than
   MAME's 60 Hz, and the board's 40 MHz video clock gives 57.61 Hz for a 263-line raster. The core's default is 57.61 Hz;
   "Refresh rate: 60 Hz (MAME)" gives MAME's speed. The comparisons with MAME above were made at 60 Hz.

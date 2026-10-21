@@ -1,17 +1,17 @@
-Fitter Status : Successful - Wed Oct 21 06:19:21 2026
+Fitter Status : Successful - Thu Oct 22 00:30:01 2026
 Quartus Prime Version : 17.0.2 Build 602 07/19/2017 SJ Lite Edition
 Revision Name : Rabbit
 Top-level Entity Name : sys_top
 Family : Cyclone V
 Device : 5CSEBA6U23I7
 Timing Models : Final
-Logic utilization (in ALMs) : 20,288 / 41,910 ( 48 % )
-Total registers : 27312
+Logic utilization (in ALMs) : 19,556 / 41,910 ( 47 % )
+Total registers : 25675
 Total pins : 145 / 314 ( 46 % )
 Total virtual pins : 0
 Total block memory bits : 3,495,565 / 5,662,720 ( 62 % )
 Total RAM Blocks : 446 / 553 ( 81 % )
-Total DSP Blocks : 45 / 112 ( 40 % )
+Total DSP Blocks : 44 / 112 ( 39 % )
 Total HSSI RX PCSs : 0
 Total HSSI PMA RX Deserializers : 0
 Total HSSI TX PCSs : 0

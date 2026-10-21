@@ -86,6 +86,26 @@ pixel wins). Unzoomed the registers are 9f80 / 6f80 (a 320 x 224 window); the ga
 MAME clears only a 650 x 600 part of its bitmap each frame (around the window's corner); every window the game uses lies inside it, so
 the stale pixels outside never show. The core draws only the window.
 
+**The count of 0 in a KO's slow motion (MAME Testers 04883, "Missing sprites during KO").** Register 5 is written in two halves. The
+low half comes from the vblank handler (5c16: `movem.l D0-D7/A0-A6, -(A7); move.w D0, $400216`): whatever D0 the interrupted code
+held, junk (0000 / 0060 alternating in the fights, which is the wait loop's D0; 00e8, 0130 ... in the attract mode); nothing uses it.
+The high half, the count, is written by the end of the sprite list routine (11276), about 5 ms into the frame. In normal play the list
+is rebuilt every other frame and the same count written again on the frame between. In the slow motion after a knockout the game
+alternates two pictures: its normal picture (layers 0-2 at priority a, behind the sprites) and a flash frame (layers 0-2 at priority 2:
+the stage in front of the sprites and of the HUD on layer 3). It writes the full count on the frames before the normal ones and 0 on
+the frames before the flash frames (MAME's frame numbers: count 0 with priority a, the list with priority 2). That pairing makes sense
+only if the chip shows its sprites one frame late, as a double-buffered sprite frame buffer does: the sprites drawn during the flash
+frame's predecessor appear with the normal picture. MAME shows them in the same frame, so in its slow motion the fighters are behind
+the stage on the flash frames and absent on the normal ones: gone altogether. Logged over scripted play (MAME's write tap on register
+5) and over a fight the computer wins: every count of 0 in a KO is a single frame between frames with sprites (three KOs and the
+computer's 17-hit beast combo); the one longer run, 116 frames, is a scene change to a story picture that has no fighters.
+
+The core keeps MAME's timing (its pictures are MAME's to the pixel) and makes one exception: a frame whose count is 0 right after a
+frame that drew sprites draws that frame's count again, from the sprite list as it is (unchanged in these frames); a second 0 in a row
+draws nothing. In the slow motion that is exactly the one-frame-late chip's picture, the fighters on every normal frame, between the
+game's flash frames; no other frame changes (the 116-frame scene change shows its first frame with the sprites of the frame before,
+during the fade to black).
+
 ## 5. Mixing and palette
 
 `screen_update` fills the screen with black, then for each priority level from 15 down to 1 draws the tilemaps of that level in the order
@@ -159,25 +179,19 @@ register log of the same attract mode):
   roughly two poles at about 3 kHz (the recording against the decoded data: flat to 2.5 kHz, -8 dB at 3.2 kHz, -12 dB at 4 kHz), with a
   bass cut below about 200 Hz (possibly the recording's), into a Toshiba power amplifier for the JAMMA speaker.
 * **The core's two sound modes** (OSD Sound). **MAME**: MAME's device exactly (`rtl/rabbit_i5000.sv` with `enhanced` 0: the fixed
-  39,062.5 Hz, register 0x46 ignored). **Enhanced** (the default): the rate from register 0x46, then two stages fitted against the
-  board recording above (the attract mode from its start, 95 s, against the same stretch rendered from MAME's register log at the
-  board's pitch and tempo). What separates MAME's decoding from the board, measured: (1) below 150 Hz the decoder's wander, up to
-  +42 dB at 40 Hz in the bass part (the board has almost nothing below 100 Hz); (2) 2-3 dB too much at 3-6 kHz, too little at
-  8-10 kHz; (3) the gaps between notes: within each second the board's loudness ranges over 5.7 dB and its gaps reach 7.6 dB below
-  the notes, MAME's decoding 4.6 and 6.7 dB, and in the intro's bass part the board's gaps are 10 dB deeper (its notes die away,
-  MAME's decoding leaves them as noise). A mix-wide expander cannot make those gaps (MAME's level barely dips between the notes);
-  lifting the decoder's 12-bit limit makes things worse (the limit is what holds the wander in); a slow leveller evens the long-term
-  level (the recording is more even than MAME's) but fills the intro's quiet parts again. So: (a) a per-note tail expander on the
-  music channels 0-11 (the sound driver keeps music there and effects and voices on 12-15; in the attract and play logs the two
-  sets never share a sample): each code's signal less the note's slow mean is scaled by (its peak follower / the note's peak since
-  the key on)^4, worked in log2 (`tools/txref.py`); (b) an EQ at the chip's rate: three 2-pole high-passes at 175 Hz, peaks of
-  +3.0 dB at 220 Hz, +0.8 dB at 2 kHz, -3.5 dB at 4.6 kHz and +3.8 dB at 8.5 kHz, a 2-pole low-pass at 12.5 kHz, and +1.5 dB of
-  make-up gain, so that Enhanced plays as loud as MAME's sound (EBU R128; peaks still 7 dB under full scale) (`rtl/rabbit_sndflt.sv`,
-  `tools/sndflt_ref.py`). Result against the board: the long-term spectrum within 1 dB from 50 Hz to 10 kHz (+1.5 dB at 12.9 kHz;
-  above that the recording's codec), within-second range 5.4 dB and gaps 7.5 dB (the board 5.7, 7.6); on the intro the quiet parts
-  -14.3 dB re the loud (the board -16.7, MAME's decoding -10.8). The bass part of the intro stays 5-7 dB quieter, relative to the
-  rest, than on the board, and the loudness envelopes correlate with the board's as MAME's did (0.62-0.75 by band): both are the
-  decoding's, which no filter after it can reach.
+  39,062.5 Hz, register 0x46 ignored). **Enhanced** (the default): the rate from register 0x46 and the mix through two 2-pole
+  high-passes at 150 Hz and a 2-pole low-pass at 11 kHz (`rtl/rabbit_sndflt.sv`, `tools/sndflt_ref.py`). Measured against the board
+  recording above (the attract mode from its start, 95 s, against the same stretch rendered from MAME's register log at the board's
+  pitch and tempo), what separates MAME's decoding from the board: (1) below 150 Hz the decoder's wander, up to +42 dB at 40 Hz in
+  the bass part (the board has almost nothing below 100 Hz); (2) 2-3 dB too much at 3-6 kHz, too little at 8-10 kHz; (3) the gaps
+  between notes: within each second the board's loudness ranges over 5.7 dB and its gaps reach 7.6 dB below the notes, MAME's
+  decoding 4.6 and 6.7 dB, and in the intro's bass part the board's gaps are 10 dB deeper (its notes die away, MAME's decoding leaves
+  them as noise). The filter takes care of (1) and the hiss. A version fitted to all three (a per-note expander on the music channels
+  that made each note's tail fade faster, and an eight-section EQ: the spectrum within 1 dB of the board's from 50 Hz to 10 kHz, the
+  short-term dynamics the board's) measured closer but sounded worse to the repository owner ("sometimes a bit nicer but overall
+  really bad in a different way"), so Enhanced is the plain filter, the version they chose by ear. Also tried and left: lifting the
+  decoder's 12-bit limit (worse: the limit is what holds the wander in), a mix-wide expander (MAME's level barely dips between
+  notes, so there is nothing to deepen), a slow leveller (it fills the quiet parts again).
 * **The frame rate**. The recording's attract mode runs 4.1 % slower than MAME's 60 Hz (the attract loop: 69.5 s against 67 s), so the
   board's vblank is about 57.6 Hz (57.64 +- 0.1); MAME's screen for this driver is a placeholder. The board has two oscillators, 40 MHz
   next to the I5000 and 24 MHz for the 68020, so its raster comes from 40 MHz: any 15 kHz layout of 263 lines that fits (40 MHz / 6 x

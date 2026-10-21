@@ -1,6 +1,6 @@
 // The frame bench's driver (sim/run_frames.sh): for each state_<f>.bin of a directory (tools/lua/dump_state.lua), the video chip is
 // reset, the state is written through the CPU's port during the first frame, the snapshot at vblank takes it, and the next picture is
-// written as out_<f>.ppm.
+// written as out_<f>.ppm. SEQ=1: no reset between the states (consecutive frames, for what the chip carries from one frame to the next).
 //   Vtb_frame_top +SDRAM=<rabbit.sdram> -- <state dir> <frame> [<frame> ...]
 #include "Vtb_frame_top.h"
 #include "verilated.h"
@@ -29,6 +29,7 @@ int main(int argc, char **argv) {
     if (pos.size() < 2) { fprintf(stderr, "usage: Vtb_frame_top +SDRAM=f -- <dir> <frame>...\n"); return 2; }
     std::string dir = pos[0];
     t = new Vtb_frame_top;
+    const bool seq = getenv("SEQ") && atoi(getenv("SEQ"));
     for (size_t fi = 1; fi < pos.size(); fi++) {
         std::string fr = pos[fi];
         FILE *f = fopen((dir + "/state_" + fr + ".bin").c_str(), "rb");
@@ -39,10 +40,12 @@ int main(int argc, char **argv) {
         if (n < (4 * 4096 + 4096 + 16384 + 24 + 7) * 4) { fprintf(stderr, "short state %s\n", fr.c_str()); continue; }
 
         // reset, wait for the SDRAM, then write the state while the first frame runs
-        t->reset_in = 1; t->v_req = 0;
-        for (int i = 0; i < 16; i++) tick();
-        t->reset_in = 0;
-        while (!t->ready) tick();
+        if (!seq || fi == 1) {
+            t->reset_in = 1; t->v_req = 0;
+            for (int i = 0; i < 16; i++) tick();
+            t->reset_in = 0;
+            while (!t->ready) tick();
+        }
         size_t k = 0;
         for (int i = 0; i < 4 * 4096; i++) wr32(true, 0x480000 + 4 * i, dw(k++));
         for (int i = 0; i < 4096; i++)     wr32(true, 0x494000 + 4 * i, dw(k++));

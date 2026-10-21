@@ -1,4 +1,5 @@
-// From the Metro core (decoryah/Arcade-Metro_MiSTer rtl/metro_fastload.sv, GPL-3.0-or-later), renamed metro_fastload -> rabbit_fastload; otherwise unchanged.
+// From the Metro core (decoryah/Arcade-Metro_MiSTer rtl/metro_fastload.sv, GPL-3.0-or-later), renamed metro_fastload -> rabbit_fastload; one change: the DDR3's
+// data is registered before it is written into the block buffer (the HPS bridge's output straight into the MLAB failed hold timing by 0.016 ns in one placement).
 // Fast load: the MRA's address= attribute makes Main_MiSTer copy the whole assembled image into the DDR3 (byte 0x32000000) in one go and then end a download that has no
 // data bytes, only a start address = the image's length (Metro.sv: fast_dl / fl_go / fl_len).  This module reads the image back from the DDR3 in 256-byte bursts and plays
 // it into the loader's byte stream (the same strobe / address / byte as the HPS port's ioctl_wr / ioctl_addr / ioctl_dout), as long as the SDRAM write path has room
@@ -44,8 +45,13 @@ module rabbit_fastload #(
     logic        cur_v;                         // `cur` holds beat fi[7:3]
     logic        rdy;                           // the buffer's registered read of beat fi[7:3] is there (one clock after the address)
     wire         fb_we = (fst == F_BEATS) && ddr_dready;
+    // the beat, its slot and the write registered first (the buffer is read only from F_PUSH on, long after the last of them lands)
+    logic [63:0] fb_wd;
+    logic  [4:0] fb_wa;
+    logic        fb_wen;
     always_ff @(posedge clk) begin
-        if (fb_we) fbuf[fbn[4:0]] <= ddr_dout;
+        fb_wd <= ddr_dout; fb_wa <= fbn[4:0]; fb_wen <= fb_we;
+        if (fb_wen) fbuf[fb_wa] <= fb_wd;
         fb_q <= fbuf[fi[7:3]];
     end
 

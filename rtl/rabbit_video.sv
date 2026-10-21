@@ -179,6 +179,7 @@ module rabbit_video (
 
     // ================================================================== the frame's sprite window (computed at the snapshot)
     logic [11:0] w_startx, w_starty, w_todraw;
+    logic        w_held;                     // this frame shows the frame before's sprites (count 0 after a frame with sprites)
     logic  [9:0] w_ncols, w_nrows;
     logic [16:0] xsize, ysize;
     logic [31:0] xstep, ystep;
@@ -209,7 +210,7 @@ module rabbit_video (
         sw_en <= 1'b0;
         if (reset) begin
             vst <= V_IDLE; snap_pend <= 1'b0; snap_act <= 1'b0; dv_run <= 1'b0; dv_n <= 6'd33;
-            xstep <= 32'h10000; ystep <= 32'h10000; w_ncols <= 10'd320; w_nrows <= 10'd224; w_todraw <= '0; w_startx <= '0; w_starty <= '0;
+            xstep <= 32'h10000; ystep <= 32'h10000; w_ncols <= 10'd320; w_nrows <= 10'd224; w_todraw <= '0; w_held <= 1'b0; w_startx <= '0; w_starty <= '0;
             for (int l = 0; l < 4; l++) for (int n = 0; n < 6; n++) begin tmr[l][n] <= '0; dtmr[l][n] <= '0; end
             for (int n = 0; n < 7; n++) begin sprr[n] <= '0; dsprr[n] <= '0; end
         end else begin
@@ -256,7 +257,15 @@ module rabbit_video (
                 w_starty <= dsprr[1][27:16] - 12'(zc);
                 xsize <= {1'b0, dsprr[2][15:0]} + 17'h80;
                 ysize <= {1'b0, dsprr[3][15:0]} + 17'h80;
-                w_todraw <= dsprr[5][27:16];
+                // The sprite count, with one exception MAME does not make (MAME Testers 04883, "Missing sprites during KO"): in a
+                // KO's slow motion the game updates its objects every other frame, and on the frames between it ends its sprite list
+                // with a count of 0 (the list itself untouched). MAME then draws no sprites on every other frame and the fighters
+                // vanish; the board, which the game was made on, cannot have shown that. A count of 0 right after a frame that drew
+                // sprites keeps that frame's count for this one frame (the list is the same); a second 0 in a row is no sprites, as
+                // the game's screens without fighters have it (logged in MAME: in play, every 0 in a KO is a single frame, the one
+                // longer run is a 116-frame scene change)
+                if (dsprr[5][27:16] == 12'd0 && w_todraw != 12'd0 && !w_held) w_held <= 1'b1;
+                else begin w_todraw <= dsprr[5][27:16]; w_held <= 1'b0; end
             end
             if (snap_act && sc == 13'd2) begin
                 w_ncols <= 10'((xsize + 17'd127) >> 7);

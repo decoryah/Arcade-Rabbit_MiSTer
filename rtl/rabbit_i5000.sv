@@ -79,8 +79,8 @@ module rabbit_i5000 #(
     logic        tick_pend;
 
     // ------------------------------------------------------------------ the state machine
-    typedef enum logic [4:0] { F_IDLE, F_CH, F_RD, F_RDW, F_GOT, F_ADPCM, F_ADP2, F_MUL, F_ACC, F_NEXT, F_OUT,
-                               F_KON, F_KGOT, F_TX1, F_TX2, F_TX3, F_TX4, F_TX5, F_TX6, F_TX7, F_TX8, F_TX9, F_TX10 } fst_t;
+    typedef enum logic [3:0] { F_IDLE, F_CH, F_RD, F_RDW, F_GOT, F_ADPCM, F_ADP2, F_MUL, F_ACC, F_NEXT, F_OUT,
+                               F_KON, F_KGOT } fst_t;
     fst_t        fs, ret;
     logic  [3:0] ch;
     logic signed [20:0] mixr, mixl;
@@ -153,35 +153,6 @@ module rabbit_i5000 #(
         out_r <= enhanced ? flt_r : raw_r;
     end
 
-    // ------------------------------------------------------------------ the Enhanced mode's per-note tail expander (music channels
-    // 0-11; tools/txref.py is this bit for bit). On each code: the note's slow mean dc, x = s - dc, a peak follower env on |x| (instant
-    // up, down 1/512 a code), the note's peak so far; x is scaled by (env / peak)^4, worked in log2 (1/64 octave), floored at -60 dB.
-    // The board's notes die away much faster than MAME's decoding lets them, and the gaps between notes are where its noise sits.
-    localparam logic [5:0]  TX_LOG2 [64] = '{6'd0, 6'd1, 6'd3, 6'd4, 6'd6, 6'd7, 6'd8, 6'd10, 6'd11, 6'd12, 6'd13, 6'd15, 6'd16, 6'd17, 6'd18, 6'd19, 6'd21, 6'd22, 6'd23, 6'd24, 6'd25, 6'd26, 6'd27, 6'd28, 6'd29, 6'd30, 6'd31, 6'd32, 6'd34, 6'd35, 6'd35, 6'd36, 6'd37, 6'd38, 6'd39, 6'd40, 6'd41, 6'd42, 6'd43, 6'd44, 6'd45, 6'd46, 6'd47, 6'd47, 6'd48, 6'd49, 6'd50, 6'd51, 6'd52, 6'd52, 6'd53, 6'd54, 6'd55, 6'd56, 6'd56, 6'd57, 6'd58, 6'd59, 6'd60, 6'd60, 6'd61, 6'd62, 6'd63, 6'd63};
-    localparam logic [16:0] TX_EXP2 [64] = '{17'd65536, 17'd64830, 17'd64132, 17'd63441, 17'd62757, 17'd62081, 17'd61413, 17'd60751, 17'd60097, 17'd59449, 17'd58809, 17'd58176, 17'd57549, 17'd56929, 17'd56316, 17'd55709, 17'd55109, 17'd54515, 17'd53928, 17'd53347, 17'd52773, 17'd52204, 17'd51642, 17'd51085, 17'd50535, 17'd49991, 17'd49452, 17'd48920, 17'd48393, 17'd47871, 17'd47356, 17'd46846, 17'd46341, 17'd45842, 17'd45348, 17'd44859, 17'd44376, 17'd43898, 17'd43425, 17'd42958, 17'd42495, 17'd42037, 17'd41584, 17'd41136, 17'd40693, 17'd40255, 17'd39821, 17'd39392, 17'd38968, 17'd38548, 17'd38133, 17'd37722, 17'd37316, 17'd36914, 17'd36516, 17'd36123, 17'd35734, 17'd35349, 17'd34968, 17'd34591, 17'd34219, 17'd33850, 17'd33486, 17'd33125};
-    logic signed [20:0] tx_dc   [12];       // 8 fraction bits
-    logic        [20:0] tx_env  [12];
-    logic        [20:0] tx_peak [12];
-    logic signed [21:0] tx_x;
-    logic        [20:0] tx_ax, tx_dec, tx_envr, tx_peakr;
-    logic        [10:0] tx_lp, tx_le;
-    logic        [12:0] tx_e;
-    logic        [16:0] tx_g;
-    logic signed [38:0] tx_p;
-    function automatic logic [10:0] log2q(input logic [20:0] v);    // log2 of v (v >= 1) in 1/64 octave
-        logic [4:0] pp;
-        logic [20:0] mv;
-        pp = 5'd0;
-        for (int i = 0; i < 21; i++) if (v[i]) pp = 5'(i);
-        mv = (pp >= 5'd6) ? (v >> (pp - 5'd6)) : (v << (5'd6 - pp));
-        return (11'(pp) << 6) + 11'(TX_LOG2[mv[5:0]]);
-    endfunction
-    // for the sound bench (sim/tb_snd_top.sv, tools/txref.py): each key on and each expanded code
-    logic        dbg_kon_stb, dbg_tx_stb;
-    logic  [3:0] dbg_ch;
-    logic signed [13:0] dbg_tx_in, dbg_tx_out;
-    logic        [12:0] tx_d4;
-    always_comb tx_d4 = {tx_lp - tx_le, 2'b00};
 
     function automatic logic signed [15:0] sat16(input logic signed [20:0] v);
         logic signed [20:0] s;
@@ -200,12 +171,10 @@ module rabbit_i5000 #(
                 playing[c] <= 1'b0; konp[c] <= 1'b0; a_lo[c] <= '0; a_hi[c] <= '0; fbase[c] <= 12'h1ff << 3;
                 volr[c] <= 12'd2047; voll[c] <= 12'd2047; outr[c] <= '0; outl[c] <= '0;
                 fmin[c] <= 9'h100; bits3[c] <= 1'b0; sig[c] <= '0; stp[c] <= '0; ftm[c] <= '0; spos[c] <= '0; smp[c] <= '0; adr[c] <= '0;
-                if (c < 12) begin tx_dc[c] <= '0; tx_env[c] <= '0; tx_peak[c] <= 21'd256; end
             end
         end else begin
             // the sample clock
             tlim   <= enhanced ? ({6'd0, n46} + 16'd1) * 16'd24 : 16'd12288;        // 12 * 2 * (N + 1)
-            dbg_kon_stb <= 1'b0; dbg_tx_stb <= 1'b0;
             mx_stb <= 1'b0;
             if (tacc + 16'd5 >= tlim) begin tacc <= tacc + 16'd5 - tlim; tick_pend <= 1'b1; end
             else tacc <= tacc + 16'd5;
@@ -259,52 +228,6 @@ module rabbit_i5000 #(
                 F_ADP2: begin
                     sig[ch] <= nsig[11:0]; r_sig <= nsig;
                     stp[ch] <= nstp[5:0];
-                    fs <= (enhanced && ch < 4'd12) ? F_TX1 : F_MUL;
-                end
-                // the tail expander (Enhanced, music channels): ten clocks, one step of tools/txref.py's Tx.clock each
-                F_TX1: begin        // the mean
-                    tx_dc[ch] <= tx_dc[ch] + (((21'(r_sig) <<< 8) - tx_dc[ch]) >>> 7);
-                    fs <= F_TX2;
-                end
-                F_TX2: begin        // x
-                    tx_x <= 22'((21'(r_sig) <<< 8)) - 22'(tx_dc[ch]);
-                    fs <= F_TX3;
-                end
-                F_TX3: begin        // |x|, the follower's decay
-                    tx_ax  <= tx_x[21] ? 21'(-tx_x) : 21'(tx_x);
-                    tx_dec <= tx_env[ch] - (tx_env[ch] >> 9);
-                    fs <= F_TX4;
-                end
-                F_TX4: begin        // the follower
-                    tx_envr <= (tx_ax > tx_env[ch]) ? tx_ax : tx_dec;
-                    tx_env[ch] <= (tx_ax > tx_env[ch]) ? tx_ax : tx_dec;
-                    fs <= F_TX5;
-                end
-                F_TX5: begin        // the note's peak
-                    tx_peakr <= (tx_envr > tx_peak[ch]) ? tx_envr : tx_peak[ch];
-                    tx_peak[ch] <= (tx_envr > tx_peak[ch]) ? tx_envr : tx_peak[ch];
-                    fs <= F_TX6;
-                end
-                F_TX6: begin        // both in log2
-                    tx_lp <= log2q(tx_peakr);
-                    tx_le <= log2q((tx_envr == 21'd0) ? 21'd1 : tx_envr);
-                    fs <= F_TX7;
-                end
-                F_TX7: begin        // the gain's log2, floored at -10 octaves
-                    tx_e <= (tx_d4 > 13'd640) ? 13'd640 : tx_d4;
-                    fs <= F_TX8;
-                end
-                F_TX8: begin        // the gain
-                    tx_g <= TX_EXP2[tx_e[5:0]] >> tx_e[12:6];
-                    fs <= F_TX9;
-                end
-                F_TX9: begin
-                    tx_p <= 39'(tx_x) * $signed({22'd0, tx_g});
-                    fs <= F_TX10;
-                end
-                F_TX10: begin
-                    r_sig <= 14'((39'(tx_dc[ch]) + (tx_p >>> 16)) >>> 8);
-                    dbg_tx_stb <= 1'b1; dbg_ch <= ch; dbg_tx_in <= r_sig; dbg_tx_out <= 14'((39'(tx_dc[ch]) + (tx_p >>> 16)) >>> 8);
                     fs <= F_MUL;
                 end
                 F_MUL: begin
@@ -344,8 +267,6 @@ module rabbit_i5000 #(
                         end
                         default: begin
                             ftm[ch] <= '0; spos[ch] <= '0; sig[ch] <= '0; stp[ch] <= '0;
-                            if (ch < 4'd12) begin tx_dc[ch] <= '0; tx_env[ch] <= '0; tx_peak[ch] <= 21'd256; end
-                            dbg_kon_stb <= 1'b1; dbg_ch <= ch;
                             smp[ch] <= rd_q;
                             if (rd_q == 16'h7f7f) adr[ch] <= (k_a + 21'd2) & ROM_MASK;
                             else                  adr[ch] <= (k_a + 21'd1) & ROM_MASK;

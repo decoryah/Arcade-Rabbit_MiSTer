@@ -17,16 +17,8 @@ module tb_snd_top (
     output logic signed [16:0] dbg_mx_l,
     output logic signed [16:0] dbg_mx_r,
     output logic signed [15:0] dbg_f_l,
-    output logic signed [15:0] dbg_f_r,
-    // the tail expander's key ons and codes (tools/txref.py)
-    output logic        dbg_kon,
-    output logic        dbg_tx,
-    output logic  [3:0] dbg_ch,
-    output logic signed [13:0] dbg_tx_in,
-    output logic signed [13:0] dbg_tx_out
+    output logic signed [15:0] dbg_f_r
 );
-    assign dbg_kon = u_snd.dbg_kon_stb; assign dbg_tx = u_snd.dbg_tx_stb; assign dbg_ch = u_snd.dbg_ch;
-    assign dbg_tx_in = u_snd.dbg_tx_in; assign dbg_tx_out = u_snd.dbg_tx_out;
     assign dbg_stb = u_snd.mx_stb;
     assign dbg_mx_l = u_snd.mx_l; assign dbg_mx_r = u_snd.mx_r;
     assign dbg_f_l = u_snd.flt_l; assign dbg_f_r = u_snd.flt_r;

@@ -3,8 +3,7 @@
 // <out>.raw (16-bit stereo), as the system bench's AUDIO=1.
 //   Vtb_snd_top +SDRAM=<rabbit.sdram> -- <snd.log> <out prefix> [seconds]
 // ENH=1: the Enhanced sound (OSD Sound), else MAME's. With ENH=1, <out>.flt gets, at every chip sample, the output filter's input (the
-// mix, int32 left, right) and its output for the sample before (int32 left, right): tools/sndflt_ref.py checks it bit for bit; <out>.tx
-// the tail expander's key ons and codes (int32 type 0 key on / 1 code, channel, in, out): tools/txref.py checks those.
+// mix, int32 left, right) and its output for the sample before (int32 left, right): tools/sndflt_ref.py checks it bit for bit.
 #include "Vtb_snd_top.h"
 #include "verilated.h"
 #include <cstdio>
@@ -44,7 +43,6 @@ int main(int argc, char **argv) {
     FILE *o = fopen((pos[1] + ".raw").c_str(), "wb");
     t->enhanced = getenv("ENH") && atoi(getenv("ENH"));
     FILE *fo = t->enhanced ? fopen((pos[1] + ".flt").c_str(), "wb") : nullptr;
-    FILE *fx = t->enhanced ? fopen((pos[1] + ".tx").c_str(), "wb") : nullptr;     // key ons and expanded codes: type, channel, in, out
     printf("sound: %s\n", t->enhanced ? "Enhanced" : "MAME");
     uint64_t cyc = 0, end = (uint64_t)(secs * 96e6);
     size_t wi = 0;
@@ -71,10 +69,6 @@ int main(int argc, char **argv) {
         }
         tick();
         cyc++;
-        if (fx && (t->dbg_kon || t->dbg_tx)) {
-            int32_t r[4] = { t->dbg_tx ? 1 : 0, (int32_t)t->dbg_ch, (int32_t)((uint32_t)t->dbg_tx_in << 18) >> 18, (int32_t)((uint32_t)t->dbg_tx_out << 18) >> 18 };
-            fwrite(r, 4, 4, fx);
-        }
         if (fo && t->dbg_stb) {
             int32_t r[4] = { (int32_t)(t->dbg_mx_l << 15) >> 15, (int32_t)(t->dbg_mx_r << 15) >> 15, (int16_t)t->dbg_f_l, (int16_t)t->dbg_f_r };
             fwrite(r, 4, 4, fo);
@@ -87,7 +81,6 @@ int main(int argc, char **argv) {
     }
     fclose(o);
     if (fo) fclose(fo);
-    if (fx) fclose(fx);
     printf("done: %.2f s, %d reads compared, %d differ\n", cyc / 96e6, nrd, nbad);
     t->final();
     delete t;

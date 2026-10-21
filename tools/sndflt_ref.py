@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """sndflt_ref.py <out.flt> | --design | --sv: the Enhanced sound's output stage (rtl/rabbit_sndflt.sv) in integer arithmetic, bit for bit.
 
-The EQ, fitted against a recording of a real board (the attract mode, 95 s; docs/hardware.md "Sound"), RBJ cookbook biquads at the
-chip's rate (40 MHz / 834 = 47,962 Hz):
-  three 2-pole Butterworth high-passes at 175 Hz (the decoder's wander and rumble, which the board does not have)
-  peaking +3.0 dB at 220 Hz (Q 1.0), +0.8 dB at 2 kHz (Q 1.4), -3.5 dB at 4.6 kHz (Q 1.0), +3.8 dB at 8.5 kHz (Q 1.4)
-  a 2-pole Butterworth low-pass at 12.5 kHz, with +1.5 dB of make-up gain (the stages take about that much loudness away: Enhanced
-  then plays as loud as MAME's sound, EBU R128, with the peaks still 7 dB under full scale)
+The filter, RBJ cookbook biquads at the chip's rate (40 MHz / 834 = 47,962 Hz): two 2-pole Butterworth high-passes at 150 Hz (MAME's
+decoding leaves a large wander below 150 Hz, up to 42 dB above a real board's recording: rumble that eats headroom and muddies the
+bass) and a 2-pole Butterworth low-pass at 11 kHz (hiss). The version the repository owner chose by ear ("the best version yet") over
+a fitted eight-section EQ with a per-note expander.
 Fixed point: the signal with 8 fraction bits in 27 bits, coefficients Q2.25, a 57-bit sum rounded back (direct form I, the sections
 sharing their histories).
 
@@ -17,10 +15,8 @@ import math, struct, sys
 
 FS = 40e6 / 834
 FB = 25
-GAIN_DB = 1.5
-SECTIONS = [('hp', 175, 0), ('hp', 175, 0), ('hp', 175, 0),
-            ('peak', 220, 3.0, 1.0), ('peak', 2000, 0.8, 1.4), ('peak', 4600, -3.5, 1.0), ('peak', 8500, 3.8, 1.4),
-            ('lp', 12500, 0)]
+GAIN_DB = 0.0
+SECTIONS = [('hp', 150, 0), ('hp', 150, 0), ('lp', 11000, 0)]
 
 
 def biquad(sec):
