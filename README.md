@@ -17,8 +17,8 @@ board (see "Where the core is not MAME"). The sound is not yet the board's (see 
 
 | | |
 |---|---|
-| ![Tian-ren against Yu-lan, a beast attack](docs/play_beast.png) | ![Tian-ren against Ja-koh, zoomed in](docs/play_zoom.png) |
-| Tian-ren against Yu-lan: a beast attack | Tian-ren against Ja-koh, the camera zoomed in |
+| ![Tian-ren against Ja-koh](docs/play_tianren_jakoh.png) | ![Wu-ling against Yu-lan](docs/play_wuling_yulan.png) |
+| Tian-ren against Ja-koh, the camera zoomed in | Wu-ling against Yu-lan (the attract mode's demo fight) |
 
 The core's own pictures, twice the size: its video chip in simulation (`sim/run_frames.sh`) drawing MAME 0.289's state of the same
 frame, pixel-identical to MAME's picture.
