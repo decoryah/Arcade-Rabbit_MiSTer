@@ -152,6 +152,9 @@ The benches need Verilator 5 (in WSL), Python 3 and your romset:
     tools/mame_dump.sh corpus "250,600,1500"                                    # MAME's states and snapshots (Git Bash)
     sim/run_frames.sh corpus rabbit.sdram                                       # render them, compare with MAME
 
+MAME's captures, the images and the benches' pictures go to a scratch folder `work/` next to the repository (never committed):
+`tools/mame_dump.sh` takes the romset from `work/roms` and runs MAME in `work/mame_run` unless `ROMPATH` / `WORK` say otherwise.
+
 ## Credits
 
 * **MAME**: the rabbit driver (David Haywood), the I5000 sound device (hap), the OKI ADPCM decoder; the hardware knowledge and the

@@ -19,6 +19,11 @@ build_id.v
 compile.log
 qdb/
 PLLJ_PLLSPE_INFO.txt
+jtag.cdf
+c5_pin_model_dump.txt
+
+# the tested release and its timing / fitter summaries
+!releases/*.summary
 
 # simulation
 sim/obj_*/
@@ -28,11 +33,6 @@ sim/emu/*.log
 artifacts/
 *.ppm
 
-# the tested release and its timing / fitter summaries
-!releases/*.summary
-jtag.cdf
-c5_pin_model_dump.txt
-
 # Python
 __pycache__/
 *.pyc
@@ -40,8 +40,3 @@ __pycache__/
 # the release zip (attach it to the GitHub release; tools/package.py); the release notes are kept
 dist/*
 !dist/RELEASE_NOTES_*.md
-
-sim/obj_*/
-sim/*.log
-tools/__pycache__/
-*.ppm
