@@ -8,15 +8,30 @@ and the owner's Mystic Warriors core.
 
 No ROMs or other copyrighted data are in this repository; you supply your own MAME `rabbit.zip`.
 
-**Status.** Runs on a MiSTer: tested by the repository owner, the game and all four versions work. Simulated with the game's real program and compared with MAME 0.289 (see "What is verified"), and where MAME is wrong, with a recording of a real board (see "Where the core is not MAME"). The sound is not yet the board's (see "Known differences").
+**Status.** Runs on a MiSTer: the repository owner has tested every release on one (20261020: the game and all four versions, CRT
+Adjust, the button names, the scandoubler modes; 20261021: the sound options and the KO fix; 20261022, the current one). Simulated with
+the game's real program and compared with MAME 0.289 (see "What is verified"), and where MAME is wrong, with a recording of a real
+board (see "Where the core is not MAME"). The sound is not yet the board's (see "Known differences").
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Tian-ren against Yu-lan, a beast attack](docs/play_beast.png) | ![Tian-ren against Ja-koh, zoomed in](docs/play_zoom.png) |
+| Tian-ren against Yu-lan: a beast attack | Tian-ren against Ja-koh, the camera zoomed in |
+
+The core's own pictures, twice the size: its video chip in simulation (`sim/run_frames.sh`) drawing MAME 0.289's state of the same
+frame, pixel-identical to MAME's picture.
 
 ## Install
 
-1. Copy the RBF (`releases/rabbit_<date>.rbf`) to `/media/fat/_Arcade/cores/` and the contents of `mra/` to `/media/fat/_Arcade/`
-   (the other versions are in `_alternatives/_Rabbit/`). Keep the RBF's `rabbit_` name: MiSTer finds the core by the MRA's `<rbf>`.
+1. Unzip the release's `Rabbit_MiSTer_<date>.zip` over the root of the SD card (`/media/fat/`): the core goes to `_Arcade/cores/`,
+   `Rabbit (Asia 3-6).mra` to `_Arcade/` and the other three versions to `_Arcade/_alternatives/_Rabbit/`. Replace the MRAs of an
+   earlier release with the new ones. (By hand from the repository: `releases/rabbit_<date>.rbf` to `_Arcade/cores/`, the contents
+   of `mra/` to `_Arcade/`. Keep the RBF's `rabbit_` name: MiSTer finds the core by the MRA's `<rbf>`.)
 2. Put your MAME 0.289 `rabbit.zip` (the merged set holds all four versions) in `/media/fat/games/mame/`.
 3. Start `Rabbit (Asia 3-6)` (or another version) from the Arcade menu. The image is 28 MB; a recent Main_MiSTer copies it to the DDR3
-   in one go (the MRAs' `address=`) and the core loads it from there in about 1.5 seconds; an older one streams it.
+   in one go (the MRAs' `address=`) and the core loads it from there in about 1.4 seconds; an older one streams it.
 
 | Set | MRA |
 |---|---|
@@ -133,8 +148,10 @@ are in `docs/hardware.md` ("Sprites", "Video: what MAME leaves out", the map).
 | `sys/` | the MiSTer framework |
 | `mra/` | the MRAs (`tools/make_mra.py`) |
 | `sim/` | Verilator benches: the whole machine (`run_sys.sh`), the frozen-state frame bench (`run_frames.sh`), the sound replay bench (`run_snd.sh`), the MiSTer top level (`emu/run_emu.sh`, and its video modes `emu/run_modes.sh`), lint |
-| `tools/` | ROM image builder (`rabbit_rom.py`), MRA writer, MAME Lua probes (`lua/dump_state.lua` states and snapshots, `lua/snd_log.lua` sound register log, `lua/watch.lua` write watch) and the runner (`mame_dump.sh`), Python reference renderer (`rabbit_ref.py`), comparisons (`cmp_frame.py`, `cmp_lag.py`, `cmp_ram.py`, `audio_cmp.py`), MAME's I5000 in Python with the game's sample rate (`i5000_ref.py`), the Enhanced sound's filter bit for bit (`sndflt_ref.py`, which also generates its coefficients), release zip (`package.py`) |
-| `docs/hardware.md` | the hardware as MAME describes it, the game's timing, and the core's design |
+| `tools/` | ROM image builder (`rabbit_rom.py`), MRA writer, MAME Lua probes (`lua/dump_state.lua` states and snapshots, `lua/snd_log.lua` sound register log, `lua/watch.lua` write watch, `lua/testmode.lua` the test mode's MEMORY TEST) and the runner (`mame_dump.sh`), Python reference renderer (`rabbit_ref.py`), comparisons (`cmp_frame.py`, `cmp_lag.py`, `cmp_ram.py`, `audio_cmp.py`), MAME's I5000 in Python with the game's sample rate (`i5000_ref.py`), the Enhanced sound's filter bit for bit (`sndflt_ref.py`, which also generates its coefficients), release zip (`package.py`) |
+| `docs/` | `hardware.md`: the hardware as MAME describes it, the game's timing, and the core's design; the screenshots |
+| `releases/` | the RBF of each release with its fitter and timing summaries |
+| `dist/` | each release's notes (`RELEASE_NOTES_<date>.md`, the GitHub release's text); `tools/package.py` writes the release's zip here (not committed) |
 
 ## Building
 
