@@ -3,10 +3,11 @@
 Aorn / Electronic Arts' **Rabbit** (1997), the one-on-one fighting game on the VG5330-B board (68EC020 and the Imagetek
 I5000), with four MRAs: Asia 3-6 (the parent), Asia 1-28, Japan 3-6 and Japan 1-28 (location test).
 
-**The 20261021 build was tested on a real MiSTer by the repository owner: its features work, and its KO fix kept the fighters
-on screen, with a flashing the owner reported.** This build has not been on a MiSTer yet. It fixes three things MAME gets wrong,
-each found in the game's own data and checked against a recording of a real board (YouTube, "[Arcade PCB] Rabbit Just play
-(Not MAME)", 1080p at 60 fps), and was checked in simulation against MAME 0.289 everywhere else (below).
+**This build was tested on a real MiSTer by the repository owner.** This zip is its second: the same RBF, with MRAs whose button
+list no longer has Service (the first zip's MRAs still listed it, and MiSTer shows an MRA's list instead of the core's). The build
+fixes three things MAME gets wrong, each found in the game's own data and checked against a recording of a real board (YouTube,
+"[Arcade PCB] Rabbit Just play (Not MAME)", 1080p at 60 fps), and was checked in simulation against MAME 0.289 everywhere else
+(below).
 
 New:
 - **The KO flash is the board's** (MAME Testers 04883, "Missing sprites during KO"). After a knockout the game flashes the
@@ -25,7 +26,8 @@ New:
 - **The test mode's MEMORY TEST passes** (MAME, and the earlier builds, report every graphics and sound ROM as ERROR: MAME does not
   bank the ROM readback window the test reads them through). The MRAs now load the sound ROM's 24-byte header at the end of its
   region, where MAME leaves zeros (the test sums it).
-- No Service button in the pad mapping any more (the keyboard's 9 still is the service button).
+- No Service button in the pad mapping any more: the button list is Light Punch (A), Heavy Punch (B), Light Kick (C), Heavy Kick
+  (D), Start, Coin, in the core and in the MRAs (the keyboard's 9 still is the service button, F2 the test switch).
 
 Unchanged since 20261021: Sound Enhanced (the default: the board's pitch and the "D2" filter) or MAME, CRT Adjust (OSD page "CRT
 Adjust"), the buttons named as the game uses them, every Scandoubler Fx setting and MiSTer.ini's `forced_scandoubler`, the board's
@@ -35,7 +37,8 @@ Adjust"), the buttons named as the game uses them, every Scandoubler Fx setting 
 
 1. Unzip `Rabbit_MiSTer_20261022.zip` over the root of the SD card. It adds `Rabbit (Asia 3-6).mra` to `_Arcade/`, the
    other three to `_Arcade/_alternatives/_Rabbit/` and `_Arcade/cores/rabbit_20261022.rbf`. Replace the MRAs of earlier
-   releases (they load the sound ROM's header differently; the game runs either way, only the MEMORY TEST's SOUND line differs).
+   releases and of the first 20261022 zip (the earlier ones load the sound ROM's header differently: the game runs either way,
+   only the MEMORY TEST's SOUND line differs; all of them list Service as a button).
 2. Put your own MAME 0.289 romset `rabbit.zip` (the merged set holds all four versions) in `games/mame/`. No ROMs are
    included.
 3. Start the game from the Arcade menu. The ROM image is 28 MB: with a recent Main_MiSTer it is copied to the DDR3 in one

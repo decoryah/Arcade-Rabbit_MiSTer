@@ -18,10 +18,11 @@
         0x1800000  0x0400000  i5000snd  jsn0 from its byte 0x18 (MAME's ROM_CONTINUE over the header), then the header (MAME: 0x18 zero bytes)
         0x1C00000  0x0000080  eeprom    rabbit.nv (the EEPROM's default; a saved .nvm takes its place)
       Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
-      The game has no DIP switches: its settings are in the EEPROM (the test mode: F2, or Service + Start on a pad).
+      The game has no DIP switches: its settings are in the EEPROM (the test mode: F2 on a keyboard).
+      The buttons are Rabbit.sv's J1 line (no service button on the pad: it is the keyboard's 9); MiSTer takes this list over the core's.
     -->
 
-    <buttons names="Light Punch (A),Heavy Punch (B),Light Kick (C),Heavy Kick (D),Start,Coin,Service" default="Y,X,B,A,Start,Select,L"/>
+    <buttons names="Light Punch (A),Heavy Punch (B),Light Kick (C),Heavy Kick (D),Start,Coin" default="Y,X,B,A,Start,Select"/>
 
     <rom index="0" zip="rabbitjt.zip|rabbit.zip" md5="None" address="0x32000000">
         <!-- maincpu -->
