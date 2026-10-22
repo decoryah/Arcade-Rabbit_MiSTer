@@ -16,6 +16,7 @@ module rabbit_core #(
     input  logic        cache_flush,        // a new image is loading
     input  logic        board_rate,         // the raster: 1 = the board's 57.61 Hz, 0 = MAME's 60 Hz (rabbit_video)
     input  logic        snd_enh,            // the sound: 1 = Enhanced (the game's sample rate, the output filter), 0 = MAME's (rabbit_i5000)
+    input  logic        no_flash,           // 1: a frame the game fills with a colour (the KO's flash) shows the frame before's sprites, no fill
 
     // the SDRAM's read clients
     output logic        m_req   [6],
@@ -111,7 +112,7 @@ module rabbit_core #(
     logic [15:0] b_data;
 
     rabbit_video u_video (
-        .clk(clk), .reset(reset), .board_rate(board_rate),
+        .clk(clk), .reset(reset), .board_rate(board_rate), .no_flash(no_flash),
         .v_req(v_req), .v_we(v_we), .v_addr(v_addr), .v_mem(v_mem), .v_be(v_be), .v_wdata(v_wdata), .v_ack(v_ack), .v_rdata(v_rdata),
         .b_we(b_we), .b_layer(b_layer), .b_idx(b_idx), .b_hi(b_hi), .b_data(b_data), .blt_active(blt_active), .snap_hold(snap_hold),
         .t_req(m_req[3]), .t_addr(m_addr[3]), .t_len(m_len[3]), .t_ack(m_ack[3]), .t_valid(m_valid[3]),

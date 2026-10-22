@@ -8,7 +8,8 @@
     0x0000000  maincpu   2 MB  ROM_LOAD32_BYTE of the four program ROMs (byte 4i + k = ROM k's byte i)
     0x0200000  gfx1     16 MB  ROM_LOAD32_WORD: jfv1 / jfv0 interleaved by words (jfv1 first), then jfv3 / jfv2
     0x1200000  gfx2      6 MB  jbg0, jbg1, jbg2
-    0x1800000  i5000snd  4 MB  jsn0 from its byte 0x18 (MAME's ROM_CONTINUE over the header), the last 0x18 bytes zero
+    0x1800000  i5000snd  4 MB  jsn0 from its byte 0x18 (MAME's ROM_CONTINUE over the header), then its first 0x18 bytes (the header
+                         "VCDT i5000", where MAME leaves 0x18 zero bytes: the test mode's ROM check sums the whole ROM, rabbit_main.sv)
     0x1C00000  eeprom  128 B   rabbit.nv
 
 --sdram writes what the SDRAM holds after the load (the bench's backdoor): the image without the EEPROM, gfx1's halves interleaved by
@@ -66,6 +67,7 @@ def build(zpath, setname):
     img[0x1400000:0x1600000] = f['jbg1.50']
     img[0x1600000:0x1800000] = f['jbg2.60']
     img[0x1800000:0x1800000 + 0x3fffe8] = f['jsn0.11'][0x18:]
+    img[0x1800000 + 0x3fffe8:0x1C00000] = f['jsn0.11'][:0x18]
     img[0x1C00000:0x1C00080] = f['rabbit.nv']
     return img
 

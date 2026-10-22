@@ -6,7 +6,8 @@
 --                         pattern of the frame number
 -- At frame_done MAME has just drawn the frame (screen_update at the start of vblank) and the CPU has not run since, so the memories
 -- read now are the ones the frame was drawn from.
--- state_<f>.bin, big-endian dwords: tilemaps 0-3 (4 x 4096), sprite RAM (4096), palette (16384), tilemap_regs (4 x 6), spriteregs (7)
+-- state_<f>.bin, big-endian dwords: tilemaps 0-3 (4 x 4096), sprite RAM (4096), palette (16384), tilemap_regs (4 x 6), spriteregs (7),
+-- viewregs6 (5: 0x400400-0x400413, the fill colour and the fade weight; older dumps end before them)
 local mach = manager.machine
 local sp   = mach.devices[":maincpu"].spaces["program"]
 local scr  = mach.screens[":screen"]
@@ -51,6 +52,8 @@ local function dump(f)
   end
   local sh = mach.memory.shares[":spriteregs"]
   for n = 0, 6 do t[#t + 1] = be32(sh:read_u32(n * 4)) end
+  local vr = mach.memory.shares[":viewregs6"]
+  for n = 0, 4 do t[#t + 1] = be32(vr:read_u32(n * 4)) end
   local fh = io.open(string.format("%s/state_%d.bin", DIR, f), "wb"); fh:write(table.concat(t)); fh:close()
   if os.getenv("WORKRAM") == "1" then
     local w = {}

@@ -6,7 +6,7 @@
 //   0x0000000  maincpu  2 MB   the 68020 program, as MAME's region (big-endian: the four byte-wide ROMs interleaved)
 //   0x0200000  gfx1    16 MB   sprites and the blitter's data, as MAME's region (ROM_LOAD32_WORD of jfv1 / jfv0, then jfv3 / jfv2)
 //   0x1200000  gfx2     6 MB   the tilemaps' tiles (jbg0, jbg1, jbg2)
-//   0x1800000  i5000snd 4 MB   the sound ROM as MAME loads it (jsn0 from its byte 0x18, the last 0x18 bytes zero)
+//   0x1800000  i5000snd 4 MB   the sound ROM as MAME loads it (jsn0 from its byte 0x18), then its header (MAME: 0x18 zero bytes)
 //   0x1C00000  eeprom 128 B    the 93C46's default contents (rabbit.nv, big-endian words)
 //
 // The SDRAM holds the image at byte address = image offset, with one exception: inside gfx1 the bit that selects the region's half (byte

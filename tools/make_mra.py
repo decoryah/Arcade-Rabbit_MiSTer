@@ -37,7 +37,7 @@ TEMPLATE = '''<misterromdescription>
         0x0000000  0x0200000  maincpu   ROM_LOAD32_BYTE of the four program ROMs
         0x0200000  0x1000000  gfx1      ROM_LOAD32_WORD: jfv1 / jfv0, then jfv3 / jfv2
         0x1200000  0x0600000  gfx2      jbg0, jbg1, jbg2
-        0x1800000  0x0400000  i5000snd  jsn0 from its byte 0x18 (MAME's ROM_CONTINUE over the header), 0x18 zero bytes
+        0x1800000  0x0400000  i5000snd  jsn0 from its byte 0x18 (MAME's ROM_CONTINUE over the header), then the header (MAME: 0x18 zero bytes)
         0x1C00000  0x0000080  eeprom    rabbit.nv (the EEPROM's default; a saved .nvm takes its place)
       Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
       The game has no DIP switches: its settings are in the EEPROM (the test mode: F2, or Service + Start on a pad).
@@ -71,7 +71,7 @@ TEMPLATE = '''<misterromdescription>
 
         <!-- i5000snd -->
         <part name="jsn0.11" crc="e1f726e8" offset="0x18" length="0x3FFFE8"/>
-        <part repeat="0x18">00</part>
+        <part name="jsn0.11" crc="e1f726e8" offset="0" length="0x18"/>
 
         <!-- eeprom -->
         <part name="rabbit.nv" crc="73d471ed"/>

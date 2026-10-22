@@ -7,7 +7,7 @@
 // word cycles, which is how the 32-bit registers of the video chip see byte enables per word here.
 //
 //   000000-1fffff  program ROM (through rabbit_cache)            400900-4009ff  I5000 sound registers (16-bit)
-//   200000-200003  inputs (read), EEPROM (byte write at 200000)  440000-47ffff  gfx1 readback window (MAME: bank 0)
+//   200000-200003  inputs (read), EEPROM (byte write at 200000)  440000-47ffff  ROM readback window (banked by 400302; MAME: bank 0)
 //   400010-400013  status (read: bit 7 of 400012 = blitter busy)  480000-48ffff  tilemaps 0-3 \
 //   400100-400177  tilemap registers  \                          494000-497fff  sprite RAM    } the video port (rabbit_video)
 //   400200-40021b  sprite registers    } the video port           4a0000-4affff  palette      /
@@ -42,7 +42,7 @@ module rabbit_main #(
     // the video chip: registers and memories, request / ack
     output logic        v_req,
     output logic        v_we,
-    output logic [17:1] v_addr,          // A17:1: the registers at 4001xx / 4002xx (v_mem = 0), the memories at 48xxxx / 494000 / 4axxxx (v_mem = 1)
+    output logic [17:1] v_addr,          // A17:1: the registers at 4001xx / 4002xx / 4004xx (v_mem = 0), the memories at 48xxxx / 494000 / 4axxxx (v_mem = 1)
     output logic        v_mem,
     output logic  [1:0] v_be,            // {uds, lds}
     output logic [15:0] v_wdata,
@@ -134,7 +134,7 @@ module rabbit_main #(
     wire sel_rom    = (A[23:21] == 3'b000);                      // 000000-1fffff
     wire sel_in     = (A[23:2]  == 22'h080000);                  // 200000-200003
     wire sel_stat   = (A[23:2]  == 22'h100004);                  // 400010-400013
-    wire sel_vreg   = (A[23:8]  == 16'h4001) || (A[23:8] == 16'h4002);   // 400100-4002ff: tilemap and sprite registers
+    wire sel_vreg   = (A[23:8]  == 16'h4001) || (A[23:8] == 16'h4002) || (A[23:8] == 16'h4004);   // 400100-4002ff: tilemap and sprite registers; 4004xx: the fill colour and fade weight
     wire sel_blt    = (A[23:4]  == 20'h40070);                   // 400700-40070f
     wire sel_snd    = (A[23:8]  == 16'h4009);                    // 400900-4009ff
     wire sel_grom   = (A[23:18] == 6'b010001);                   // 440000-47ffff
@@ -167,6 +167,7 @@ module rabbit_main #(
     bst_t bst;
     logic [6:0] tok;
     logic       gr_taken;
+    logic [2:0] gr_rlane;
 
     wire [6:0] step_cost = is_int ? 7'(STEP_COST_INT) : 7'(STEP_COST_BUS);
     wire cpu_step = (bst == B_IDLE) && (tok >= step_cost) && !clkena && (step_gap == 3'd0);
@@ -174,9 +175,33 @@ module rabbit_main #(
     assign rom_req  = cpu_step && (fc != 3'b111) && !is_int && !is_wr && sel_rom;
     assign rom_addr = A[20:1];
 
-    // gfx1 byte offset of the readback word (bank 0 of MAME's region, the window's u32s read as MAME's little-endian host does: the CPU's
-    // high word is region bytes 3, 2 and its low word bytes 1, 0); its SDRAM word: 0x100000 + {b[22:2], b[23], b[1]} (rabbit_loader.sv)
-    wire [17:0] gb = {A[17:2], ~A[1], 1'b0};
+    // The readback window at 440000-47ffff (256 KB) shows the bank written to 400302 (MAME: rombank_w, "not currently hooked up": bank 0
+    // always, so the test mode's MEMORY TEST reports every data ROM as an ERROR). The bank's high bits select a ROM, its low bits a
+    // 256 KB step of the window; the test mode sums each ROM through it and expects the ROM file's byte sum, which fixes the layout:
+    //   000-01f  gfx1 0-8 MB: jfv1 in the high words, jfv0 in the low     080-09f  gfx1 8-16 MB: jfv3 / jfv2
+    //   020-03f  the sound ROM, 16-bit, in the window's high words (each 128 KB of it)  (the low words: the same word)
+    //   100-107  jbg0, 32-bit                 180-18f  jbg1, a byte in each word's low half    200-20f  jbg2, in the high half
+    // (other banks: gfx1 as 000-01f). The test sums each lane on its own, so it fixes which ROM is in which word or byte, not the order
+    // of the two bytes in a word (the core keeps MAME's). gfx1's word is at SDRAM 0x100000 + {b[22:2], b[23], b[1]} for region byte b
+    // (rabbit_loader.sv; MAME's region has jfv1 in bytes 0, 1 of each dword, which its little-endian host shows the CPU as the low word:
+    // the board has it in the high word); gfx2 at 0x900000, the sound ROM at 0xc00000 (byte addresses / 2).
+    logic [9:0] rombank;
+    wire [17:0] gb = {A[17:2], A[1], 1'b0};
+    wire [23:0] gb1 = {(rombank[9:7] == 3'd1), rombank[4:0], gb};          // gfx1 region byte
+    logic [23:0] gr_wa;                                                    // the window word's SDRAM word address
+    logic  [2:0] gr_lane;                                                  // 0: the word byte-swapped (MAME's host order), 1: as stored,
+                                                                           // 2 / 3: the stored word's high / low byte in the low half,
+                                                                           // 6 / 7: in the high half
+    always_comb begin
+        gr_wa = 24'h100000 + 24'({gb1[22:2], gb1[23], gb1[1]}); gr_lane = 3'd0;
+        case (rombank[9:7])
+            3'd0: if (rombank[5]) gr_wa = 24'hc00000 + 24'({rombank[4:0], A[17:2]});
+            3'd2: begin gr_wa = 24'h900000 + 24'({rombank[2:0], A[17:1]}); gr_lane = 3'd1; end
+            3'd3: begin gr_wa = 24'h900000 + 24'h100000 + 24'({rombank[3:0], A[17:2]}); gr_lane = A[1] ? 3'd3 : 3'd2; end
+            3'd4: begin gr_wa = 24'h900000 + 24'h200000 + 24'({rombank[3:0], A[17:2]}); gr_lane = A[1] ? 3'd7 : 3'd6; end
+            default: ;
+        endcase
+    end
 
     always_ff @(posedge clk) begin
         clkena   <= 1'b0;
@@ -192,7 +217,7 @@ module rabbit_main #(
         if (reset) begin
             bst <= B_IDLE; tok <= '0; step_gap <= '0;
             irq6_pend <= 1'b0; irq4_pend <= 1'b0;
-            gr_req <= 1'b0; v_req <= 1'b0;
+            gr_req <= 1'b0; v_req <= 1'b0; rombank <= '0;
             eep_cs <= 1'b0; eep_di <= 1'b0; eep_clk <= 1'b0;
             for (int i = 0; i < 3; i++) blt_regs[i] <= '0;
         end else begin
@@ -217,13 +242,14 @@ module rabbit_main #(
                             bst <= B_WAIT_V;
                         end else begin
                             clkena <= 1'b1; dbg_step <= 1'b1;     // posted
+                            if (A[23:1] == 23'h200181 && lds) rombank <= wdat[9:0];   // 400302: the readback window's bank
                         end
                     end else begin
                         tok <= tok - step_cost;
                         if (sel_rom) begin
                             bst <= B_WAIT_ROM;                // rom_req goes out in this clock
                         end else if (sel_grom) begin
-                            gr_req <= 1'b1; gr_addr <= 24'h100000 + 24'({gb[17:2], 1'b0, gb[1]}); gr_taken <= 1'b0; bst <= B_WAIT_GR;
+                            gr_req <= 1'b1; gr_addr <= gr_wa; gr_rlane <= gr_lane; gr_taken <= 1'b0; bst <= B_WAIT_GR;
                         end else if (sel_vreg || sel_vmem) begin
                             v_req <= 1'b1; v_we <= 1'b0; v_mem <= sel_vmem; v_addr <= A[17:1]; v_be <= {uds, lds};
                             bst <= B_WAIT_V;
@@ -239,7 +265,14 @@ module rabbit_main #(
                 B_WAIT_GR: begin
                     if (gr_ack) gr_taken <= 1'b1;
                     if (gr_valid && gr_taken) begin
-                        data_in <= {gr_data[7:0], gr_data[15:8]};
+                        case (gr_rlane)
+                            3'd0:    data_in <= {gr_data[7:0], gr_data[15:8]};
+                            3'd1:    data_in <= gr_data;
+                            3'd2:    data_in <= {8'h00, gr_data[15:8]};
+                            3'd3:    data_in <= {8'h00, gr_data[7:0]};
+                            3'd6:    data_in <= {gr_data[15:8], 8'h00};
+                            default: data_in <= {gr_data[7:0], 8'h00};
+                        endcase
                         clkena <= 1'b1; dbg_step <= 1'b1; bst <= B_IDLE;
                     end
                 end

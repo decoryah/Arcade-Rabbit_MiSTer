@@ -31,12 +31,19 @@ static void write_ppm(const std::string &fn, const std::vector<uint8_t> &fb) {
 }
 
 // the scripted inputs, the same as tools/lua/dump_state.lua's sched(): MAME takes the values set in frame f's frame_done from the
-// vblank that ends frame f on, which is when `frame` here becomes f. Active low: bit 6 coin 1, bit 2 start 1, P1 bits 8-15 (up, down,
-// left, right, buttons 1-4).
+// vblank that ends frame f on, which is when `frame` here becomes f. Active low: bit 6 coin 1, bit 2 start 1, bit 5 the test switch,
+// P1 bits 8-15 (up, down, left, right, buttons 1-4). SCHED=test: the test switch at 300, then up, up, A: the test menu's MEMORY TEST
+// (the ROM check), as tools/lua's testmode schedule does in MAME.
 static uint32_t sched_in(const char *sched, int f) {
     uint32_t in = 0xffffffff;
     if (!sched) return in;
     auto press = [&](int bit) { in &= ~(1u << bit); };
+    if (!strcmp(sched, "test")) {
+        if (f >= 300 && f < 310) press(5);
+        if ((f >= 330 && f < 336) || (f >= 350 && f < 356)) press(8);
+        if (f >= 370 && f < 376) press(12);
+        return in;
+    }
     if (f >= 300 && f < 306) press(6);
     if (f >= 400 && f < 406) press(2);
     if (!strcmp(sched, "coin")) {
@@ -71,6 +78,7 @@ int main(int argc, char **argv) {
     t->clk = 0; t->reset_in = 1; t->in_port = 0xffffffff;
     t->board_rate = getenv("BOARD") && atoi(getenv("BOARD"));    // BOARD=1: the board's 57.61 Hz raster (default: MAME's 60 Hz)
     t->snd_enh = getenv("ENH") && atoi(getenv("ENH"));           // ENH=1: the Enhanced sound (default: MAME's)
+    t->no_flash = getenv("NOFLASH") && atoi(getenv("NOFLASH"));   // NOFLASH=1: KO flash Off
     t->eval();
 
     std::vector<uint8_t> fb(320 * 224 * 3, 0);

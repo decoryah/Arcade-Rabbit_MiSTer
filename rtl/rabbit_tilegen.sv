@@ -13,7 +13,8 @@
 // Bank 8 adds 0x10000 to the tile number, bank C 0x20000, the others nothing. 4bpp tiles: palette 0x2000 + colour*16 + pen (colour & 0x3f
 // with the colour mask), pen 15 transparent; 8bpp tiles: 0x2000 + (colour & 0xf)*256 + pen, pen 255 transparent. The tile number counts
 // 32-byte units: the row of a tile is at byte  (code & ~mask) * 32 + row * rowbytes  of gfx2 (rowbytes 8 / 16 / 4 / 8 for 16x16x4, 16x16x8,
-// 8x8x4, 8x8x8). A pixel in srcbuf is {opaque, idx[11:0]}: the palette entry 0x2000 + idx.
+// 8x8x4, 8x8x8). A pixel in srcbuf is {translucent, opaque, idx[11:0]}: the palette entry 0x2000 + idx. Translucent: an 8bpp tile with
+// bit 31 set, which MAME draws opaque; the board blends it over what is beneath (rabbit_video.sv, the fade).
 //------------------------------------------------------------------------------
 `default_nettype none
 
@@ -48,7 +49,7 @@ module rabbit_tilegen #(
     // srcbuf: four lanes (pixel position mod 4), entry {layer, parity, position[9:2]}
     output logic  [3:0] sb_we,
     output logic [10:0] sb_addr [4],
-    output logic [12:0] sb_d    [4]
+    output logic [13:0] sb_d    [4]
 );
     // ------------------------------------------------------------------ the request side
     typedef enum logic [2:0] { R_IDLE, R_SETUP, R_ROW, R_RD, R_DEC, R_REQ, R_NEXT, R_WAIT } rst_t;
@@ -69,6 +70,7 @@ module rabbit_tilegen #(
         logic  [9:0] pos;                    // the tile's first pixel in srcbuf
         logic        flipx;
         logic        depth;                  // 8bpp
+        logic        tr;                     // translucent (8bpp, bit 31)
         logic        ts16;
         logic  [7:0] col;                    // 4bpp: the colour (masked); 8bpp: colour & 0xf in 3:0
         logic  [3:0] nw;                     // words - 1
@@ -142,6 +144,7 @@ module rabbit_tilegen #(
                     nd.pos   <= ts16 ? {t[5:0], 4'd0} : {t[6:0], 3'd0};
                     nd.flipx <= e[30];
                     nd.depth <= e[28];
+                    nd.tr    <= e[28] & e[31];
                     nd.ts16  <= ts16;
                     nd.col   <= e[28] ? {4'd0, e[23:20]} : (e[31] ? {2'b00, e[25:20]} : e[27:20]);
                     nd.nw    <= ts16 ? (e[28] ? 4'd7 : 4'd3) : (e[28] ? 4'd3 : 4'd1);
@@ -172,7 +175,7 @@ module rabbit_tilegen #(
     // the four lanes a word writes: 4bpp = 4 pixels (pens w[11:8], w[15:12], w[3:0], w[7:4]), 8bpp = 2 (w[15:8], w[7:0])
     logic  [3:0] l_we;
     logic [10:0] l_addr [4];
-    logic [12:0] l_d    [4];
+    logic [13:0] l_d    [4];
     always_comb begin
         for (int i = 0; i < 4; i++) begin l_we[i] = 1'b0; l_addr[i] = '0; l_d[i] = '0; end
         for (int m = 0; m < 4; m++) begin : px
@@ -202,7 +205,7 @@ module rabbit_tilegen #(
             if (!h.depth || m < 2) begin
                 l_we[p[1:0]]   = 1'b1;
                 l_addr[p[1:0]] = {h.lyr, par, p[9:2]};
-                l_d[p[1:0]]    = {opq, idx};
+                l_d[p[1:0]]    = {h.tr, opq, idx};
             end
         end
     end

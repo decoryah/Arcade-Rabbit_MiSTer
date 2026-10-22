@@ -71,12 +71,13 @@ localparam CONF_STR = {
 	"O[9:8],Volume,Normal,-6 dB,-12 dB,+6 dB;",
 	"O[10],Swap stereo,No,Yes;",
 	"O[14],Refresh rate,57.6 Hz (board),60 Hz (MAME);",
+	"O[15],KO flash,Board,Off;",
 	"O[12],Autosave EEPROM,On,Off;",
 	"T[13],Save EEPROM;",
 	"-;",
 	"R0,Reset;",
-	"J1,Light Punch (A),Heavy Punch (B),Light Kick (C),Heavy Kick (D),Start,Coin,Service;",
-	"jn,Y,X,B,A,Start,Select,L;",
+	"J1,Light Punch (A),Heavy Punch (B),Light Kick (C),Heavy Kick (D),Start,Coin;",
+	"jn,Y,X,B,A,Start,Select;",
 	"V,v",`BUILD_DATE
 };
 
@@ -163,12 +164,12 @@ always @(posedge clk_sys) begin
 	end
 end
 
-// joystick bits: 0 right, 1 left, 2 down, 3 up, 4-7 buttons 1-4, 8 start, 9 coin, 10 service (the J1 line above)
+// joystick bits: 0 right, 1 left, 2 down, 3 up, 4-7 buttons 1-4, 8 start, 9 coin (the J1 line above; service is the keyboard's 9 only)
 wire [7:0] p1 = {joystick_0[7:4], joystick_0[0], joystick_0[1], joystick_0[2], joystick_0[3]};   // b4 b3 b2 b1 right left down up
 wire [7:0] p2 = {joystick_1[7:4], joystick_1[0], joystick_1[1], joystick_1[2], joystick_1[3]};
 wire start1 = joystick_0[8] | key_start1, coin1 = joystick_0[9] | key_coin1;
 wire start2 = joystick_1[8] | key_start2, coin2 = joystick_1[9] | key_coin2;
-wire service = joystick_0[10] | joystick_1[10] | key_service;
+wire service = key_service;
 
 // MAME's INPUTS (0x200000), active low: bit 0 the EEPROM (the core), 1 unknown, 2 / 3 start 1 / 2, 4 service 1, 5 the test switch,
 // 6 / 7 coin 1 / 2, 15:8 player 1 (up, down, left, right, buttons 1-4), 23:16 player 2, 31:24 unused
@@ -284,10 +285,11 @@ wire        frame_tick;
 
 wire        board_rate = ~status[14];       // the board's 57.61 Hz (default) or MAME's 60 Hz
 wire        snd_enh    = ~status[11];       // the Enhanced sound (default: the board's pitch, the output filter) or MAME's exactly
+wire        no_flash   = status[15];        // KO flash Off: the frames the game fills with a colour repeat the frame before (rabbit_video)
 
 rabbit_core u_core
 (
-	.clk(clk_sys), .reset(mc_rst), .cache_flush(c_flush), .board_rate(board_rate), .snd_enh(snd_enh),
+	.clk(clk_sys), .reset(mc_rst), .cache_flush(c_flush), .board_rate(board_rate), .snd_enh(snd_enh), .no_flash(no_flash),
 	.m_req(m_req), .m_addr(m_addr), .m_len(m_len), .m_ack(m_ack), .m_valid(m_valid), .m_rdata(m_rdata),
 	.in_port(in_port),
 	.ee_ld_wr(ee_ld_wr && !nv_loaded && !nv_wr), .ee_ld_addr(ee_ld_addr), .ee_ld_data(ee_ld_data),

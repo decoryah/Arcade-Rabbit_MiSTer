@@ -27,18 +27,22 @@ drawn at the start of vblank (`screen_update`), after which the vblank interrupt
 | 400010 / 400012 | W | written by the game as an interrupt enable mask / acknowledge (the vblank handler writes 8 to 400012, the blit-done handler 0x20); MAME ignores both, so does the core |
 | 400100-400177 | W | tilemap registers, 6 dwords per layer at 400100 + 0x20 * layer (write-only: reads give 0) |
 | 400200-40021b | W | sprite registers, 7 dwords |
-| 400300 | W | ROM bank of the readback window (MAME: not hooked up, bank 0 always; so is the core) |
-| 400400-400413, 400500, 400800-40080f, 479700-479713 | W | registers with no known use (ignored) |
+| 400302 | W | the readback window's bank (MAME: "not currently hooked up", bank 0 always). The test mode's MEMORY TEST sums each data ROM through it and expects the ROM file's byte sum, which fixes which ROM is in which lane (each lane is summed on its own): 000-01f gfx1 0-8 MB (jfv1 in the high words, jfv0 in the low: the other way round from MAME's little-endian view of its region), 080-09f gfx1 8-16 MB (jfv3 / jfv2), 020-03f the sound ROM (16-bit, in the high words), 100-107 jbg0 (32-bit), 180-18f jbg1 (in each word's low byte), 200-20f jbg2 (in each word's high byte); 256 KB of window a step. The core implements it (`rtl/rabbit_main.sv`); with MAME's bank 0 the test reports FV01-FV04, BG00-BG02 and SOUND as ERROR |
+| 400404-40040b | W | byte 405: the translucent tiles' weight (the fades); bytes 406-409: the fill colour, xGRB (the KO's flash). MAME's `viewregs6`, unused there; see section 5 |
+| 400400-400403, 40040c-400413, 400500, 400800-40080f, 479700-479713 | W | registers with no known use (ignored; at boot the game writes 0249 8400 to 400400 and 8888 to 400404, 0 to 40040c and 400410) |
 | 400700-40070f | W | blitter registers; a write to the fourth dword starts a blit (the game writes a word to 40070e) |
 | 400900-4009ff | RW | I5000 sound registers (16-bit, only whole-word writes) |
-| 440000-47ffff | R | gfx1 readback window: bank 0 of the region, read as MAME's little-endian host sees it (the CPU's high word = bytes 3, 2) |
+| 440000-47ffff | R | the ROM readback window (the bank above). The game reads it at boot (bank 0, a sum of every word it does not check, the same in either word order) and in the MEMORY TEST |
 | 480000-48ffff | RW | tilemaps 0-3, 16 KB (4096 entries) each |
 | 494000-497fff | RW | sprite RAM |
 | 4a0000-4affff | RW | palette, 16384 xGRB_888 dwords |
 | ff0000-ffffff | RW | work RAM |
 
 Interrupts (autovectored, held until acknowledged as MAME's HOLD_LINE): level 6 at the start of vblank, level 4 500 us after a blit was
-started. MAME's comment lists 5 and 1 as "also valid": the game's vectors for them exist, nothing raises them.
+started. MAME's comment lists 5 and 1 as "also valid" ("might be raster related"): the game's vectors for them exist, nothing raises them,
+and their handlers do no drawing work: level 5's (5fe8) only acknowledges (0x10 to 400012), level 1's (6012) acknowledges and clears its
+own enable bit. So the to-do in MAME's driver, "raster effects (see left side of one of the levels)", is not a raster interrupt the game
+uses.
 
 ## 3. Tilemaps
 
@@ -86,25 +90,31 @@ pixel wins). Unzoomed the registers are 9f80 / 6f80 (a 320 x 224 window); the ga
 MAME clears only a 650 x 600 part of its bitmap each frame (around the window's corner); every window the game uses lies inside it, so
 the stale pixels outside never show. The core draws only the window.
 
-**The count of 0 in a KO's slow motion (MAME Testers 04883, "Missing sprites during KO").** Register 5 is written in two halves. The
+**The sprite list is shown one frame late (MAME Testers 04883, "Missing sprites during KO").** Register 5 is written in two halves. The
 low half comes from the vblank handler (5c16: `movem.l D0-D7/A0-A6, -(A7); move.w D0, $400216`): whatever D0 the interrupted code
 held, junk (0000 / 0060 alternating in the fights, which is the wait loop's D0; 00e8, 0130 ... in the attract mode); nothing uses it.
-The high half, the count, is written by the end of the sprite list routine (11276), about 5 ms into the frame. In normal play the list
-is rebuilt every other frame and the same count written again on the frame between. In the slow motion after a knockout the game
-alternates two pictures: its normal picture (layers 0-2 at priority a, behind the sprites) and a flash frame (layers 0-2 at priority 2:
-the stage in front of the sprites and of the HUD on layer 3). It writes the full count on the frames before the normal ones and 0 on
-the frames before the flash frames (MAME's frame numbers: count 0 with priority a, the list with priority 2). That pairing makes sense
-only if the chip shows its sprites one frame late, as a double-buffered sprite frame buffer does: the sprites drawn during the flash
-frame's predecessor appear with the normal picture. MAME shows them in the same frame, so in its slow motion the fighters are behind
-the stage on the flash frames and absent on the normal ones: gone altogether. Logged over scripted play (MAME's write tap on register
-5) and over a fight the computer wins: every count of 0 in a KO is a single frame between frames with sprites (three KOs and the
-computer's 17-hit beast combo); the one longer run, 116 frames, is a scene change to a story picture that has no fighters.
+The high half, the count, is written by the end of the sprite list routine (11276), about 5 ms into the frame.
 
-The core keeps MAME's timing (its pictures are MAME's to the pixel) and makes one exception: a frame whose count is 0 right after a
-frame that drew sprites draws that frame's count again, from the sprite list as it is (unchanged in these frames); a second 0 in a row
-draws nothing. In the slow motion that is exactly the one-frame-late chip's picture, the fighters on every normal frame, between the
-game's flash frames; no other frame changes (the 116-frame scene change shows its first frame with the sprites of the frame before,
-during the fade to black).
+After a knockout, before the slow-motion fall, the game flashes the screen for about 0.75 s: it alternates two frames (MAME's frame
+numbers, the state MAME draws each from):
+
+* A: layers 0-2 at priority a, the sprite count 0, the fill colour off;
+* B: layers 0-2 at priority 2, the full sprite count, the fill colour 00c0c0c0 (section 5).
+
+MAME draws A without the fighters and B with the stage in front of the fighters and the HUD: the fighters are gone for the whole flash
+(and the HUD every other frame). A recording of a real board (the attract mode and play on YouTube, "[Arcade PCB] Rabbit Just play
+(Not MAME)", 1080p at 60 fps; a KO at 4:46.4, Wu-Ling's of Hou-En) shows, frame for frame, a normal frame (fighters, HUD, stage) and a
+flash frame (the stage a flat light grey, no fighters, the HUD and the hit counter on top) alternating. That is A drawn with B's sprites
+and B with A's (none): **the chip shows a frame's sprite list one frame after the rest of the frame.** It draws the sprites into a
+bitmap during one frame and shows the bitmap through the window in the next (MAME draws into its sprite bitmap in the same frame).
+The game is written for that: it writes the count of 0 one frame before each frame that is to show no sprites. The flash frames also
+need the fill colour behind the HUD and the low-3-bit priority (section 5); with both, every frame of the flash is the board's.
+
+The core does it for every frame: the snapshot copies the sprite RAM and the count into one of two buffers and stage A draws from the
+other (the frame before's); the window registers 0-3, which say where the bitmap is shown, are the frame's own. In a fight the sprites
+change every frame, so the core's pictures there are MAME's layers with MAME's sprites of the frame before. The attract mode's demo fight
+cannot check that frame for frame against the recording: the game picks the computer's opponent at random, and the board's demo is
+another fight.
 
 ## 5. Mixing and palette
 
@@ -112,6 +122,30 @@ during the fade to black).
 3, 2, 1, 0, and at level 9 (after the tilemaps of level 9) the sprites; a layer of priority 0 is never drawn. The game uses layers 0-2 at
 10, layer 3 (the text) at 8 or 14. The palette is xGRB_888: G in bits 23:16, R in 15:8, B in 7:0. Only entries 0x0000-0x0fff (sprites) and
 0x2000-0x2fff (tiles) can be shown.
+
+### Video: what MAME leaves out
+
+Three more things, each found in the game's writes (MAME's write taps) and checked against the board recording (section 4):
+
+* **The priority is compared on bits 2:0** (the core draws a layer at level 8 + bits 2:0, so 2 is drawn as a). Logged over 20,000
+  frames each of the attract mode, scripted play and a fight the computer wins, the game writes the combinations aaa8, eca8, ace8,
+  cea8, eac8, all with bit 3 set, where both readings give the same order, and 2228 in the KOs' flash frames only. There MAME puts the
+  stage in front of the sprites and of layer 3; on the board the flash frames show the HUD over the fill and the frames between show
+  the fighters in front of the stage.
+* **The fill colour.** Bytes 406-409 (0x400404's low half, 0x400408's high half) are a colour in the palette's layout (x, G, R, B).
+  When it is not 0, everything behind the sprites (the layers of levels 10-15 and the black) is that colour. The game writes 00c0c0c0
+  on the KO's flash frames (its main loop at 53ef8) and its vblank handler (5c52) writes 0 every frame. The board's flash frames are a
+  flat grey ((177, 180, 192) in the capture, within 3 levels across the stage: none of the stage shows through) with the HUD on top.
+  Whether the fill lies behind or in front of the sprites is not known (the flash frames have no sprites); the core puts it behind.
+* **Translucent tiles.** An 8bpp tile with bit 31 set (MAME uses bit 31 only on 4bpp tiles, as a colour mask) is blended over what is
+  beneath it: tile x (15 - w) / 15 + beneath x w / 15, w = byte 405's high nibble (0x400404 bits 23:20). The game's fades lay such a
+  tile (9408c520, black or white through its palette entry) over the whole screen on layer 0 and step byte 405: the first fade-in at
+  boot (00 to f0, frames 133-164), the EA logo's fade-out (f0 to 00 one step a frame, 325-340), the Aorn logo's fade-in (every other
+  frame, 405-436), the title's fade from white (every 8 frames, 1255-1382); it is f0 everywhere else. MAME draws the tile opaque, so
+  the logos vanish for the length of their fades and the title replaces a white screen in one frame. On the board the EA logo dims
+  linearly to black in 16 frames while the credit text on layer 3 (in front of the tile) stays as it is, and the white screen turns
+  into the title in 16 equal steps 8 frames apart (mean level 225 to 47 in the capture); the core's blend follows those steps to within
+  0.03 of the full swing. No other 8bpp tile with bit 31 appears in the 1,700 frames dumped.
 
 ## 6. Blitter (`do_blit`)
 
@@ -159,7 +193,11 @@ register log of the same attract mode):
   entries, index tables from (-1, 2, 4, 6, 8) down to (-1, 1, 1, 2, 2) and with larger decrements, 16-bit signal) rebuilds the samples
   cleanly: each either clips 5-10 % of the time or wanders (90 % of the energy below 40 Hz). Fitting the recording's waveform with a free
   filter does not separate the candidates either (R^2 0.73-0.79 for all of them on the recording's cleaner right channel). A clean
-  recording of single sounds from a board (the test mode's sound test, line out) would decide it.
+  recording of single sounds from a board (the test mode's sound test, line out) would decide it. One more clue: the two words after
+  the format word, which MAME skips, read as data, not as a header: as codes (low nibble first) they lead straight into the rest
+  (typically 0, 7, 7, 7, ... the attack from silence), and the first code is 0 in all 474 samples (11 more headers are doubled,
+  7f7f 0184 7f7f 0184). Starting there changes nothing for MAME's decoder (at its clamp 44 % of the time either way), but a decoder
+  that fits the data should start there.
 * **The decoding, with the Saturn version as a reference.** The Saturn port (1997, CD) has the music as CD audio: track 13 is the
   attract intro, the arcade's single sample 0bbc77, as a clean 16-bit mono recording (its spectrogram matches the board recording's
   intro at 0.90; it plays 0.2 % slower). It is not the arcade data's source sample for sample (codes and waveform agree in sign 55 % of
@@ -196,9 +234,15 @@ register log of the same attract mode):
   board's vblank is about 57.6 Hz (57.64 +- 0.1); MAME's screen for this driver is a placeholder. The board has two oscillators, 40 MHz
   next to the I5000 and 24 MHz for the 68020, so its raster comes from 40 MHz: any 15 kHz layout of 263 lines that fits (40 MHz / 6 x
   440 dots, / 4 x 660, / 5 x 528) gives 57.61 Hz. The core's raster offers both (see "Clocks and raster").
-* 31 of the 485 samples end with `7f7f`, a command word `xx07` and a negative word (`febc` etc.), then the usual `7f7f 0000`: probably
-  a loop back by that many words (MAME and the core end the sample there). In scripted play one of them is played (01dbc6, 87 times in
-  3,000 frames).
+* 31 of the 485 samples end with `7f7f`, a command word `xx07` and a negative word (`febc` etc.), then the usual `7f7f 0000`. The
+  negative word is always -(16k + 4) (-0x44 to -0x1444): a jump back over the last 16k words before the command, a loop of whole
+  16-word blocks. xx is always a multiple of 4 up to 0xf0 (a 6-bit value), as if it held the decoder's state for the loop's start; it
+  is not the step index of an OKI-style rule (index += table[magnitude], clamped): of 893,200 walks (tables with two negative and four
+  rising steps, tops 48 to 127, the data from the header's word 2 or 4, five reference points for the jump) none gives the index xx / 4
+  at more than 6 of the 32 loop starts, which is chance. MAME and the core end the sample at the command. In the
+  logged attract mode and scripted play only 01dbc6 has one (a music instrument, played on channels 0-11), and the game keys every one
+  of its 86 notes off before the sample's end, so a loop would not be heard there; the core keeps MAME's end rather than risk a note
+  that never stops. (The sound ROM's region starts 0x18 bytes into the file: MAME loads the "VCDT i5000" header to the end.)
 
 ## 8. The game's timing, and why the core keeps two copies of the video state
 
@@ -242,9 +286,14 @@ A line is made in three steps of one line time (6105 clocks) each:
   the layer's source line (1024 pixels by map column mod 1024). `rabbit_sprgen` finds the window rows that land on the line (none, one,
   or up to three zoomed out), clears their window, scans the sprite list from the last sprite to the first and draws the rows of every
   sprite that covers them (4-word SDRAM bursts, 4 pixels a clock).
-* stage B (one line ahead): the layers and the sprite rows are drawn into the line in MAME's order, each opaque pixel over what is there:
-  a layer by stepping its source line at its zoom step (a pixel a clock), the sprites by MAME's forward mapping of window columns.
-* stage C: the line through the palette to the screen.
+* stage B (one line ahead): the layers and the sprite rows are drawn into the line in MAME's order (a layer at level 8 + its priority's
+  bits 2:0), each opaque pixel over what is there: a layer by stepping its source line at its zoom step (a pixel a clock), the sprites by
+  MAME's forward mapping of window columns; the fill colour, when it is on, over everything before the sprites. A translucent tile pixel
+  goes into a second line (cov) and leaves the pixel beneath in place; anything drawn over it later clears it.
+* stage C: the line through the palette to the screen, cov's pixel blended over it (two palette reads, the blend in two clocks).
+
+The sprite list (sprite RAM and count) is double-buffered: the snapshot writes one buffer while stage A draws the other, the frame
+before's (section 4).
 
 The benches count lines whose stage A or B was not finished in time; none has been seen.
 

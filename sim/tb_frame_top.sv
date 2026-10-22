@@ -4,6 +4,7 @@
 module tb_frame_top (
     input  logic        clk,
     input  logic        reset_in,
+    input  logic        no_flash,           // KO flash Off (rabbit_video)
     input  logic        v_req,
     input  logic        v_we,
     input  logic [17:1] v_addr,
@@ -48,7 +49,7 @@ module tb_frame_top (
     logic [15:0] v_rdata_unused;
     logic        snap_hold_unused, frame_unused;
     rabbit_video u_video (
-        .clk(clk), .reset(reset_in || !ready), .board_rate(1'b0),
+        .clk(clk), .reset(reset_in || !ready), .board_rate(1'b0), .no_flash(no_flash),
         .v_req(v_req), .v_we(v_we), .v_addr(v_addr), .v_mem(v_mem), .v_be(v_be), .v_wdata(v_wdata), .v_ack(v_ack), .v_rdata(v_rdata_unused),
         .b_we(1'b0), .b_layer(2'd0), .b_idx(12'd0), .b_hi(1'b0), .b_data(16'd0), .blt_active(1'b0), .snap_hold(snap_hold_unused),
         .t_req(m_req[0]), .t_addr(m_addr[0]), .t_len(m_len[0]), .t_ack(m_ack[0]), .t_valid(m_valid[0]),

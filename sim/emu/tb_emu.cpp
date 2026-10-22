@@ -61,6 +61,7 @@ int main(int argc, char **argv) {
     // ---------------------------------------------------------------- the OSD and the framework's settings
     const bool mame = env("MAME");
     if (mame) set_status(14, 1);                                    // Refresh rate: 60 Hz (MAME)
+    if (env("NOFLASH")) set_status(15, 1);                          // KO flash: Off
     const int fx = env("FX"); const bool fsd = env("FSD");
     set_field(3, 3, fx);                                            // Scandoubler Fx
     if (fsd) HPSV(r_fsd) = 1;                                       // MiSTer.ini's forced_scandoubler
